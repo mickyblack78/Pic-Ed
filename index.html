@@ -9,18 +9,19 @@
         #viewport { flex: 1; overflow: hidden; position: relative; background: #050505; display: flex; justify-content: center; align-items: center; }
         canvas { background: #111; touch-action: none; position: absolute; box-shadow: 0 0 30px #000; }
         
-        .bottom-nav { height: 95px; background: rgba(20, 20, 20, 0.8); backdrop-filter: blur(15px); display: flex; justify-content: space-around; align-items: center; padding-bottom: 30px; border-top: 1px solid #444; }
+        /* Glass UI with extra height for G35 safe area */
+        .bottom-nav { height: 100px; background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(15px); display: flex; justify-content: space-around; align-items: center; padding-bottom: 35px; border-top: 1px solid #444; }
         .liquid-btn { width: 18%; height: 50px; border-radius: 12px; background: rgba(255,255,255,0.1); border: 1px solid #555; color: white; font-size: 9px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; }
-        .liquid-btn.active { border-color: #00ff64; background: rgba(0, 255, 100, 0.1); }
+        .liquid-btn.active { border-color: #00ff64; background: rgba(0, 255, 100, 0.1); color: #00ff64; }
         
-        .panel { position: absolute; bottom: 130px; width: 92%; left: 4%; background: rgba(25, 25, 25, 0.95); backdrop-filter: blur(20px); border-radius: 20px; padding: 15px; display: none; z-index: 100; border: 1px solid #666; }
-        .close-x { position: absolute; top: 5px; right: 10px; font-size: 20px; color: #ff4444; font-weight: bold; padding: 5px; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .panel { position: absolute; bottom: 135px; width: 92%; left: 4%; background: rgba(25, 25, 25, 0.98); backdrop-filter: blur(25px); border-radius: 20px; padding: 15px; display: none; z-index: 100; border: 1px solid #666; box-shadow: 0 -10px 30px rgba(0,0,0,0.8); }
+        .close-x { position: absolute; top: 10px; right: 15px; font-size: 22px; color: #ff4444; font-weight: bold; padding: 5px; z-index: 110; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
         
-        /* Visual Color Slider */
-        .rainbow-bar { -webkit-appearance: none; width: 100%; height: 25px; border-radius: 5px; background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red); margin-top: 10px; }
-        #shadeGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 10px; }
-        .shade-box { height: 35px; border-radius: 5px; border: 1px solid #fff; }
+        .rainbow-bar { -webkit-appearance: none; width: 100%; height: 30px; border-radius: 8px; background: linear-gradient(to right, red, #ff0, lime, cyan, blue, #f0f, red); margin-top: 15px; border: 1px solid #fff; }
+        #shadeGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+        .shade-box { height: 40px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.5); }
+        input[type="range"] { width: 100%; height: 40px; }
     </style>
 </head>
 <body>
@@ -42,13 +43,14 @@
             <button class="liquid-btn" onclick="t('undo')">Undo</button>
             <button class="liquid-btn" onclick="t('sm')">Smooth</button>
             <button class="liquid-btn" onclick="t('draw')">Draw</button>
-            <button class="liquid-btn" onclick="t('match')">Match</button>
+            <button class="liquid-btn" id="pickBtn" onclick="t('pick')">Color Pick</button>
         </div>
     </div>
 
     <div id="brushPanel" class="panel">
         <div class="close-x" onclick="p('brush')">✕</div>
-        <input type="range" id="size" min="2" max="300" value="50">
+        <label style="font-size: 12px;">Brush Size</label>
+        <input type="range" id="size" min="2" max="300" value="60">
     </div>
 
     <div id="colorPanel" class="panel">
@@ -87,6 +89,7 @@
                         const m = new Image(); m.onload = () => {
                             if(type==='add'){ cvs.width=m.width; cvs.height=m.height; ctx.drawImage(m,0,0); save(); ox=0; oy=0; scale=Math.min(innerWidth/m.width, (innerHeight-250)/m.height); upCam(); }
                             else { ctx.drawImage(m,0,0,m.width/3,m.height/3); save(); }
+                            p('menu');
                         }; m.src = v.target.result;
                     }; r.readAsDataURL(e.target.files[0]);
                 }; i.click();
@@ -94,17 +97,21 @@
         }
 
         function t(v){
-            mode = v; document.getElementById('panBtn').classList.toggle('active', v==='pan');
+            mode = v; 
+            document.getElementById('panBtn').classList.toggle('active', v==='pan');
+            document.getElementById('pickBtn').classList.toggle('active', v==='pick');
             if(v==='rot'){
                 save(); const q=document.createElement('canvas'), x=q.getContext('2d');
                 q.width=cvs.width; q.height=cvs.height; x.translate(q.width/2, q.height/2); x.rotate(30*Math.PI/180);
                 x.drawImage(cvs,-cvs.width/2,-cvs.height/2); ctx.clearRect(0,0,cvs.width,cvs.height); ctx.drawImage(q,0,0);
-            } else if(v==='undo'){ if(history.length > 0) ctx.putImageData(history.pop(), 0, 0); }
+                p('tools');
+            } else if(v==='undo'){ if(history.length > 0) ctx.putImageData(history.pop(), 0, 0); p('tools'); }
+            else if(v==='draw' || v==='sm') { p('tools'); }
         }
 
         function genP(h) {
             const g = document.getElementById('shadeGrid'); g.innerHTML = '';
-            // Core colors: Black, White, Gold, Silver, Skin1, Skin2
+            // Brand Colors: Black, White, Holden Gold, Silver, Skin Tones
             const core = ['#000000','#ffffff','#D4AF37','#C0C0C0','#ffdbac','#8d5524'];
             core.forEach(c => {
                 let d = document.createElement('div'); d.className='shade-box'; d.style.background=c;
@@ -125,8 +132,16 @@
         }
 
         window.addEventListener('touchstart', e => {
-            if(e.touches.length === 1 && mode === 'pan'){ isP=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
-            else if(e.touches.length === 1) { save(); }
+            if(e.touches.length === 1){
+                if(mode === 'pan'){ isP=true; sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
+                else if(mode === 'pick'){
+                    const pos = getXY(e);
+                    const d = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+                    curCol = `rgb(${d[0]},${d[1]},${d[2]})`;
+                    t('draw'); // Switch back to draw after picking
+                }
+                else { save(); }
+            }
         });
 
         window.addEventListener('touchmove', e => {
@@ -135,7 +150,7 @@
                 if(lastD>0) scale *= (d/lastD); lastD = d; upCam();
             } else if (e.touches.length === 1) {
                 if(isP){ ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; upCam(); }
-                else {
+                else if(mode !== 'pick') {
                     const pos = getXY(e); const s = document.getElementById('size').value;
                     if(mode === 'draw'){ ctx.fillStyle=curCol; ctx.beginPath(); ctx.arc(pos.x, pos.y, s/2, 0, Math.PI*2); ctx.fill(); }
                     else if(mode === 'sm'){ ctx.globalAlpha=0.1; ctx.filter='blur(8px)'; ctx.drawImage(cvs,pos.x-s,pos.y-s,s*2,s*2,pos.x-s,pos.y-s,s*2,s*2); ctx.filter='none'; ctx.globalAlpha=1; }
