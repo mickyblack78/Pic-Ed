@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #viewport { flex-grow: 1; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; }
-        canvas { background: #111; touch-action: none; image-rendering: pixelated; transform-origin: center; transition: transform 0.1s; }
+        canvas { background: #111; touch-action: none; image-rendering: pixelated; transform-origin: center; }
         .bottom-nav { height: 70px; background: rgba(30, 30, 30, 0.9); display: flex; justify-content: space-around; align-items: center; padding: 5px; border-top: 1px solid #444; }
         .liquid-btn { width: 22%; height: 50px; border-radius: 15px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 10px; font-weight: bold; display: flex; justify-content: center; align-items: center; text-transform: uppercase; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .panel { position: absolute; bottom: 80px; width: 94%; left: 3%; background: #222; border-radius: 15px; padding: 10px; display: none; z-index: 100; border: 1px solid #444; }
@@ -19,6 +19,7 @@
 </head>
 <body>
     <div id="viewport"><canvas id="canvas"></canvas></div>
+
     <div id="menuPanel" class="panel">
         <div class="grid">
             <button class="liquid-btn" onclick="act('add')">Add 1</button>
@@ -28,63 +29,111 @@
         </div>
         <div id="fileList" style="height:150px; overflow-y:auto; margin-top:10px; background:#111; padding:5px; font-size:10px;">List Empty</div>
     </div>
+
     <div id="toolsPanel" class="panel"><div class="grid">
-        <button class="liquid-btn" onclick="t('rot')">Rotate</button>
-        <button class="liquid-btn" onclick="t('undo')">Undo</button>
-        <button class="liquid-btn" onclick="t('sm')">Smooth</button>
-        <button class="liquid-btn" onclick="t('cut')">Cut</button>
-        <button class="liquid-btn" onclick="t('match')">Match</button>
+        <button id="btnRot" class="liquid-btn" onclick="t('rot')">Rotate</button>
+        <button id="btnUndo" class="liquid-btn" onclick="t('undo')">Undo</button>
+        <button id="btnSm" class="liquid-btn" onclick="t('sm')">Smooth</button>
+        <button id="btnCut" class="liquid-btn" onclick="t('cut')">Cut</button>
+        <button id="btnMatch" class="liquid-btn" onclick="t('match')">Match</button>
     </div></div>
+
     <div id="brushPanel" class="panel">
         <div id="dot" class="brush-preview"></div>
-        <input type="range" id="size" min="1" max="100" oninput="upB()">
+        <input type="range" id="size" min="5" max="100" value="20" oninput="upB()">
     </div>
+
     <div id="colorPanel" class="panel">
         <div id="cBox" class="color-preview"></div>
         <input type="range" min="0" max="360" oninput="upC(this.value)">
     </div>
+
     <nav class="bottom-nav">
         <div class="liquid-btn" onclick="p('menu')">Menu</div>
         <div class="liquid-btn" onclick="p('tools')">Tools</div>
         <div class="liquid-btn" onclick="p('brush')">Brush</div>
         <div class="liquid-btn" onclick="p('color')">Color</div>
     </nav>
+
     <script>
         const cvs = document.getElementById('canvas'), ctx = cvs.getContext('2d');
-        let img = new Image(), scale = 1, lastD = 0, history = [];
+        let img = new Image(), scale = 1, lastD = 0, history = [], mode = 'draw', curCol = 'red';
+
         function p(id) {
             const el = document.getElementById(id+'Panel');
             const vis = el.style.display === 'block';
             document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
             el.style.display = vis ? 'none' : 'block';
         }
+
+        function save() { if(history.length > 10) history.shift(); history.push(ctx.getImageData(0,0,cvs.width,cvs.height)); }
+
         function act(type) {
             if(type==='add'||type==='add2'){
                 const i = document.createElement('input'); i.type='file';
                 i.onchange = e => {
                     const r = new FileReader(); r.onload = v => {
                         const m = new Image(); m.onload = () => {
-                            if(type==='add'){cvs.width=m.width; cvs.height=m.height; ctx.drawImage(m,0,0);}
-                            else ctx.drawImage(m,10,10,m.width/2,m.height/2);
+                            if(type==='add'){cvs.width=m.width; cvs.height=m.height; ctx.drawImage(m,0,0); save();}
+                            else { ctx.drawImage(m,10,10,m.width/2,m.height/2); save(); }
                         }; m.src = v.target.result;
                     }; r.readAsDataURL(e.target.files[0]);
                 }; i.click();
             } else if(type==='dl'){const a=document.createElement('a'); a.download='edit.png'; a.href=cvs.toDataURL(); a.click();}
         }
-        function t(v){ if(v==='rot'){
-            const q=document.createElement('canvas'), x=q.getContext('2d'); q.width=cvs.height; q.height=cvs.width;
-            x.translate(q.width/2,q.height/2); x.rotate(Math.PI/2); x.drawImage(cvs,-cvs.width/2,-cvs.height/2);
-            cvs.width=q.width; cvs.height=q.height; ctx.drawImage(q,0,0);
-        }}
+
+        function t(v){ 
+            if(v==='rot'){
+                save();
+                const q=document.createElement('canvas'), x=q.getContext('2d'); q.width=cvs.height; q.height=cvs.width;
+                x.translate(q.width/2,q.height/2); x.rotate(Math.PI/2); x.drawImage(cvs,-cvs.width/2,-cvs.height/2);
+                cvs.width=q.width; cvs.height=q.height; ctx.drawImage(q,0,0);
+            } else if(v==='undo') {
+                if(history.length > 0) ctx.putImageData(history.pop(), 0, 0);
+            } else {
+                mode = v; // Sets mode to 'sm', 'cut', or 'match'
+                document.querySelectorAll('#toolsPanel .liquid-btn').forEach(b => b.style.background = 'rgba(255,255,255,0.1)');
+                event.target.style.background = 'green';
+            }
+        }
+
         function upB(){ const s=document.getElementById('size').value; document.getElementById('dot').style.width=s+'px'; document.getElementById('dot').style.height=s+'px'; }
-        function upC(v){ document.getElementById('cBox').style.background=`hsl(${v},100%,50%)`; ctx.fillStyle=`hsl(${v},100%,50%)`; }
-        window.addEventListener('touchmove', e => {
-            if(e.touches.length===2){
+        function upC(v){ curCol = `hsl(${v},100%,50%)`; document.getElementById('cBox').style.background=curCol; }
+
+        function getXY(e) {
+            const r = cvs.getBoundingClientRect();
+            const touch = e.touches[0];
+            return {
+                x: (touch.clientX - r.left) * (cvs.width / r.width),
+                y: (touch.clientY - r.top) * (cvs.height / r.height)
+            };
+        }
+
+        cvs.addEventListener('touchstart', e => { if(e.touches.length === 1) save(); });
+
+        cvs.addEventListener('touchmove', e => {
+            if(e.touches.length === 2){
                 let d = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY);
                 if(lastD>0){ scale*=(d/lastD); cvs.style.transform=`scale(${scale})`; }
                 lastD=d;
+            } else if (e.touches.length === 1) {
+                const pos = getXY(e);
+                const size = document.getElementById('size').value;
+                if(mode === 'draw') {
+                    ctx.fillStyle = curCol;
+                    ctx.beginPath(); ctx.arc(pos.x, pos.y, size/2, 0, Math.PI*2); ctx.fill();
+                } else if (mode === 'sm') {
+                    ctx.filter = 'blur(4px)';
+                    ctx.drawImage(cvs, pos.x-size, pos.y-size, size*2, size*2, pos.x-size, pos.y-size, size*2, size*2);
+                    ctx.filter = 'none';
+                } else if (mode === 'match') {
+                    const data = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+                    curCol = `rgb(${data[0]},${data[1]},${data[2]})`;
+                    document.getElementById('cBox').style.background = curCol;
+                }
             }
         }, {passive:false});
+
         window.addEventListener('touchend', () => lastD=0);
     </script>
 </body>
