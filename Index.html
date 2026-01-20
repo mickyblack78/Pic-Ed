@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Pic Ed</title>
+    <style>
+        body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* 1. The Workspace */
+        #viewport { flex-grow: 1; position: relative; overflow: auto; display: flex; justify-content: center; align-items: center; }
+        canvas { background: #111; touch-action: pinch-zoom; image-rendering: pixelated; }
+
+        /* 2. Liquid Buttons & Panel */
+        .bottom-nav { height: 60px; background: rgba(50, 50, 50, 0.8); display: flex; justify-content: space-around; align-items: center; padding: 5px; border-top: 1px solid #444; }
+        
+        .liquid-btn {
+            width: 22%; height: 45px; border-radius: 12px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(0,0,0,0.3));
+            box-shadow: 2px 2px 5px #000, inset -1px -1px 2px rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; font-size: 10px; font-weight: bold;
+            display: flex; justify-content: center; align-items: center; text-transform: uppercase;
+        }
+
+        /* 3. Refined Panels */
+        .panel { position: absolute; bottom: 70px; width: 90%; left: 5%; background: #222; border-radius: 15px; padding: 15px; display: none; box-shadow: 0 -5px 20px #000; }
+        .brush-preview { width: 10mm; height: 10mm; background: white; border-radius: 50%; margin: 10px auto; }
+        .color-preview { width: 5cm; height: 5cm; margin: 10px auto; border: 2px solid #fff; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="brushPanel" class="panel">
+        <div id="dotPreview" class="brush-preview"></div>
+        <input type="range" id="sizeSlider" min="1" max="100" style="width:100%">
+    </div>
+
+    <div id="colorPanel" class="panel">
+        <div id="refinedColor" class="color-preview"></div>
+        <input type="range" id="rainbowSlider" class="rainbow" style="width:100%">
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="liquid-btn" onclick="togglePanel('menu')">Menu</div>
+        <div class="liquid-btn" onclick="togglePanel('tools')">Tools</div>
+        <div class="liquid-btn" onclick="togglePanel('brush')">Brush</div>
+        <div class="liquid-btn" onclick="togglePanel('color')">Color</div>
+    </nav>
+
+    <script>
+        function togglePanel(id) {
+            document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+            const target = document.getElementById(id + 'Panel');
+            if (target) target.style.display = 'block';
+        }
+        // Basic zoom logic and canvas initialization will follow in next paste
+    </script>
+</body>
+</html>
