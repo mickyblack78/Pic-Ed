@@ -5,130 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Pic Ed</title>
     <style>
-        body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        /* 1. The Workspace */
-        #viewport { flex-grow: 1; position: relative; overflow: auto; display: flex; justify-content: center; align-items: center; }
-        canvas { background: #111; touch-action: pinch-zoom; image-rendering: pixelated; }
-
-        /* 2. Liquid Buttons & Panel */
-        .bottom-nav { height: 60px; background: rgba(50, 50, 50, 0.8); display: flex; justify-content: space-around; align-items: center; padding: 5px; border-top: 1px solid #444; }
-        
-        .liquid-btn {
-            width: 22%; height: 45px; border-radius: 12px;
-            background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(0,0,0,0.3));
-            box-shadow: 2px 2px 5px #000, inset -1px -1px 2px rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            color: white; font-size: 10px; font-weight: bold;
-            display: flex; justify-content: center; align-items: center; text-transform: uppercase;
-        }
-
-        /* 3. Refined Panels */
-        .panel { position: absolute; bottom: 70px; width: 90%; left: 5%; background: #222; border-radius: 15px; padding: 15px; display: none; box-shadow: 0 -5px 20px #000; }
-        .brush-preview { width: 10mm; height: 10mm; background: white; border-radius: 50%; margin: 10px auto; }
-        .color-preview { width: 5cm; height: 5cm; margin: 10px auto; border: 2px solid #fff; }
+        body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        #viewport { flex-grow: 1; overflow: hidden; display: flex; justify-content: center; align-items: center; position: relative; }
+        canvas { background: #111; touch-action: none; image-rendering: pixelated; transform-origin: center; transition: transform 0.1s; }
+        .bottom-nav { height: 70px; background: rgba(30, 30, 30, 0.9); display: flex; justify-content: space-around; align-items: center; padding: 5px; border-top: 1px solid #444; }
+        .liquid-btn { width: 22%; height: 50px; border-radius: 15px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 10px; font-weight: bold; display: flex; justify-content: center; align-items: center; text-transform: uppercase; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .panel { position: absolute; bottom: 80px; width: 94%; left: 3%; background: #222; border-radius: 15px; padding: 10px; display: none; z-index: 100; border: 1px solid #444; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .brush-preview { width: 20px; height: 20px; background: white; border-radius: 50%; margin: 10px auto; border: 2px solid #555; }
+        .color-preview { width: 5cm; height: 5cm; margin: 10px auto; border: 2px solid #fff; background: red; }
+        input[type="range"] { width: 100%; height: 30px; }
     </style>
 </head>
 <body>
-
-    <div id="viewport">
-        <canvas id="canvas"></canvas>
+    <div id="viewport"><canvas id="canvas"></canvas></div>
+    <div id="menuPanel" class="panel">
+        <div class="grid">
+            <button class="liquid-btn" onclick="act('add')">Add 1</button>
+            <button class="liquid-btn" onclick="act('add2')">Add 2</button>
+            <button class="liquid-btn" onclick="act('dl')">Download</button>
+            <button class="liquid-btn" onclick="act('save')">Save</button>
+        </div>
+        <div id="fileList" style="height:150px; overflow-y:auto; margin-top:10px; background:#111; padding:5px; font-size:10px;">List Empty</div>
     </div>
-
+    <div id="toolsPanel" class="panel"><div class="grid">
+        <button class="liquid-btn" onclick="t('rot')">Rotate</button>
+        <button class="liquid-btn" onclick="t('undo')">Undo</button>
+        <button class="liquid-btn" onclick="t('sm')">Smooth</button>
+        <button class="liquid-btn" onclick="t('cut')">Cut</button>
+        <button class="liquid-btn" onclick="t('match')">Match</button>
+    </div></div>
     <div id="brushPanel" class="panel">
-        <div id="dotPreview" class="brush-preview"></div>
-        <input type="range" id="sizeSlider" min="1" max="100" style="width:100%">
+        <div id="dot" class="brush-preview"></div>
+        <input type="range" id="size" min="1" max="100" oninput="upB()">
     </div>
-
     <div id="colorPanel" class="panel">
-        <div id="refinedColor" class="color-preview"></div>
-        <input type="range" id="rainbowSlider" class="rainbow" style="width:100%">
+        <div id="cBox" class="color-preview"></div>
+        <input type="range" min="0" max="360" oninput="upC(this.value)">
     </div>
-
     <nav class="bottom-nav">
-        <div class="liquid-btn" onclick="togglePanel('menu')">Menu</div>
-        <div class="liquid-btn" onclick="togglePanel('tools')">Tools</div>
-        <div class="liquid-btn" onclick="togglePanel('brush')">Brush</div>
-        <div class="liquid-btn" onclick="togglePanel('color')">Color</div>
+        <div class="liquid-btn" onclick="p('menu')">Menu</div>
+        <div class="liquid-btn" onclick="p('tools')">Tools</div>
+        <div class="liquid-btn" onclick="p('brush')">Brush</div>
+        <div class="liquid-btn" onclick="p('color')">Color</div>
     </nav>
-
     <script>
-        function togglePanel(id) {
-            document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-            const target = document.getElementById(id + 'Panel');
-            if (target) target.style.display = 'block';
+        const cvs = document.getElementById('canvas'), ctx = cvs.getContext('2d');
+        let img = new Image(), scale = 1, lastD = 0, history = [];
+        function p(id) {
+            const el = document.getElementById(id+'Panel');
+            const vis = el.style.display === 'block';
+            document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
+            el.style.display = vis ? 'none' : 'block';
         }
-        const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-let img = new Image();
-let scale = 1, lastDist = 0;
-
-// 1. MENU SYSTEM: Save/Open/Add
-function handleMenu(action) {
-    if(action === 'add') {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.onchange = e => {
-            const reader = new FileReader();
-            reader.onload = ev => { img.src = ev.target.result; };
-            reader.readAsDataURL(e.target.files[0]);
-        };
-        input.click();
-    }
-}
-
-img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-};
-
-// 2. TOOLS: Undo/Rotate/Smooth
-let history = [];
-function saveState() { history.push(ctx.getImageData(0,0,canvas.width,canvas.height)); }
-function undo() { if(history.length) ctx.putImageData(history.pop(), 0,0); }
-
-function rotate() {
-    saveState();
-    const temp = document.createElement('canvas');
-    const tCtx = temp.getContext('2d');
-    temp.width = canvas.height; temp.height = canvas.width;
-    tCtx.translate(temp.width/2, temp.height/2);
-    tCtx.rotate(Math.PI/2);
-    tCtx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
-    canvas.width = temp.width; canvas.height = temp.height;
-    ctx.drawImage(temp, 0, 0);
-}
-
-// 3. BRUSH & COLOR: Visual Previews
-const sizeSlider = document.getElementById('sizeSlider');
-const dot = document.getElementById('dotPreview');
-sizeSlider.oninput = () => {
-    const s = sizeSlider.value / 4; // Max 10mm-ish feel
-    dot.style.width = s + 'px';
-    dot.style.height = s + 'px';
-};
-
-const rainbow = document.getElementById('rainbowSlider');
-const colorBox = document.getElementById('refinedColor');
-rainbow.oninput = () => {
-    const hue = rainbow.value;
-    colorBox.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
-};
-
-// 4. TOUCH: Pinch Zoom & Heal
-canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2) {
-        let dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-        if (lastDist > 0) {
-            scale *= (dist / lastDist);
-            canvas.style.transform = `scale(${scale})`;
+        function act(type) {
+            if(type==='add'||type==='add2'){
+                const i = document.createElement('input'); i.type='file';
+                i.onchange = e => {
+                    const r = new FileReader(); r.onload = v => {
+                        const m = new Image(); m.onload = () => {
+                            if(type==='add'){cvs.width=m.width; cvs.height=m.height; ctx.drawImage(m,0,0);}
+                            else ctx.drawImage(m,10,10,m.width/2,m.height/2);
+                        }; m.src = v.target.result;
+                    }; r.readAsDataURL(e.target.files[0]);
+                }; i.click();
+            } else if(type==='dl'){const a=document.createElement('a'); a.download='edit.png'; a.href=cvs.toDataURL(); a.click();}
         }
-        lastDist = dist;
-    }
-});
-canvas.addEventListener('touchend', () => { lastDist = 0; });
-        
+        function t(v){ if(v==='rot'){
+            const q=document.createElement('canvas'), x=q.getContext('2d'); q.width=cvs.height; q.height=cvs.width;
+            x.translate(q.width/2,q.height/2); x.rotate(Math.PI/2); x.drawImage(cvs,-cvs.width/2,-cvs.height/2);
+            cvs.width=q.width; cvs.height=q.height; ctx.drawImage(q,0,0);
+        }}
+        function upB(){ const s=document.getElementById('size').value; document.getElementById('dot').style.width=s+'px'; document.getElementById('dot').style.height=s+'px'; }
+        function upC(v){ document.getElementById('cBox').style.background=`hsl(${v},100%,50%)`; ctx.fillStyle=`hsl(${v},100%,50%)`; }
+        window.addEventListener('touchmove', e => {
+            if(e.touches.length===2){
+                let d = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY);
+                if(lastD>0){ scale*=(d/lastD); cvs.style.transform=`scale(${scale})`; }
+                lastD=d;
+            }
+        }, {passive:false});
+        window.addEventListener('touchend', () => lastD=0);
     </script>
 </body>
 </html>
