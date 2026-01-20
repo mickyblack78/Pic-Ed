@@ -58,7 +58,77 @@
             const target = document.getElementById(id + 'Panel');
             if (target) target.style.display = 'block';
         }
-        // Basic zoom logic and canvas initialization will follow in next paste
+        const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let img = new Image();
+let scale = 1, lastDist = 0;
+
+// 1. MENU SYSTEM: Save/Open/Add
+function handleMenu(action) {
+    if(action === 'add') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.onchange = e => {
+            const reader = new FileReader();
+            reader.onload = ev => { img.src = ev.target.result; };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+        input.click();
+    }
+}
+
+img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+};
+
+// 2. TOOLS: Undo/Rotate/Smooth
+let history = [];
+function saveState() { history.push(ctx.getImageData(0,0,canvas.width,canvas.height)); }
+function undo() { if(history.length) ctx.putImageData(history.pop(), 0,0); }
+
+function rotate() {
+    saveState();
+    const temp = document.createElement('canvas');
+    const tCtx = temp.getContext('2d');
+    temp.width = canvas.height; temp.height = canvas.width;
+    tCtx.translate(temp.width/2, temp.height/2);
+    tCtx.rotate(Math.PI/2);
+    tCtx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
+    canvas.width = temp.width; canvas.height = temp.height;
+    ctx.drawImage(temp, 0, 0);
+}
+
+// 3. BRUSH & COLOR: Visual Previews
+const sizeSlider = document.getElementById('sizeSlider');
+const dot = document.getElementById('dotPreview');
+sizeSlider.oninput = () => {
+    const s = sizeSlider.value / 4; // Max 10mm-ish feel
+    dot.style.width = s + 'px';
+    dot.style.height = s + 'px';
+};
+
+const rainbow = document.getElementById('rainbowSlider');
+const colorBox = document.getElementById('refinedColor');
+rainbow.oninput = () => {
+    const hue = rainbow.value;
+    colorBox.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+};
+
+// 4. TOUCH: Pinch Zoom & Heal
+canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+        let dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        if (lastDist > 0) {
+            scale *= (dist / lastDist);
+            canvas.style.transform = `scale(${scale})`;
+        }
+        lastDist = dist;
+    }
+});
+canvas.addEventListener('touchend', () => { lastDist = 0; });
+        
     </script>
 </body>
 </html>
