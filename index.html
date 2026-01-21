@@ -6,61 +6,63 @@
     <title>Pic Ed Stability</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        #vp { flex: 1; overflow: hidden; position: relative; background: #050505; display: flex; justify-content: center; align-items: center; }
-        canvas { background: #111; touch-action: none; position: absolute; }
+        #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
+        canvas { position: absolute; touch-action: none; }
+        #editCvs { pointer-events: none; }
         
-        .bottom-nav { height: 110px; background: rgba(20, 20, 20, 0.95); backdrop-filter: blur(15px); display: flex; justify-content: space-around; align-items: center; padding-bottom: 40px; border-top: 1px solid #444; z-index: 2000; }
-        .btn { width: 18%; height: 50px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid #555; color: white; font-size: 8px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; }
-        .active { border-color: #00ff64; background: rgba(0, 255, 100, 0.1); color: #00ff64; box-shadow: 0 0 10px #00ff64; }
+        .nav { height: 110px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 35px; border-top: 1px solid #444; z-index: 2000; }
+        .btn { width: 18%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 8px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; }
+        .active { border-color: #00ff64; color: #00ff64; box-shadow: 0 0 10px #00ff64; }
+        .col-active { border: 2px solid #00ff64 !important; box-shadow: 0 0 8px #00ff64; }
         
-        .panel { position: absolute; bottom: 145px; width: 92%; left: 4%; background: rgba(25, 25, 25, 0.98); backdrop-filter: blur(25px); border-radius: 20px; padding: 15px; display: none; z-index: 2100; border: 1px solid #666; }
-        .close-x { float: right; font-size: 22px; color: #ff4444; font-weight: bold; padding: 5px; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
-        .lib-thumb { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover; border: 1px solid #444; }
+        .panel { position: absolute; bottom: 145px; width: 90%; left: 5%; background: rgba(30,30,30,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #666; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+        .thumb { width: 100%; aspect-ratio: 1; border-radius: 5px; object-fit: cover; border: 1px solid #444; }
+        .shade-box { height: 35px; border-radius: 4px; border: 1px solid #444; }
         input[type="range"] { width: 100%; height: 40px; }
-        .rainbow { -webkit-appearance: none; width: 100%; height: 25px; border-radius: 8px; background: linear-gradient(to right, red, #ff0, lime, cyan, blue, #f0f, red); margin: 10px 0; border: 1px solid #fff; }
     </style>
 </head>
 <body>
-    <div id="vp"><canvas id="c"></canvas></div>
+    <div id="vp"><canvas id="baseCvs"></canvas><canvas id="editCvs"></canvas></div>
 
     <div id="menuPanel" class="panel">
-        <span class="close-x" onclick="p('menu')">✕</span>
         <div class="grid">
             <button class="btn" onclick="act('up')">Upload</button>
+            <button class="btn" onclick="p('lib')">Practice</button>
             <button class="btn" onclick="act('dl')">Download</button>
-            <button class="btn" onclick="act('clr')">Clear Edits</button>
+            <button class="btn" onclick="act('qs')">Q-Save</button>
+            <button class="btn" onclick="act('clr')" style="color:#ff4444">Clear</button>
         </div>
-        <div id="lib" class="grid" style="max-height: 40vh; overflow-y: auto; margin-top: 10px;"></div>
+    </div>
+
+    <div id="libPanel" class="panel">
+        <div class="grid" id="libGrid"></div>
+        <button class="btn" onclick="p('menu')" style="width:100%; margin-top:10px;">Back</button>
     </div>
 
     <div id="toolsPanel" class="panel">
-        <span class="close-x" onclick="p('tools')">✕</span>
         <div class="grid">
-            <button class="btn" id="undoBtn" onclick="t('undo')">Undo</button>
-            <button class="btn" id="rotBtn" onclick="t('rot')">Rotate 30</button>
+            <button class="btn" onclick="t('undo')">Undo</button>
+            <button class="btn" onclick="t('rot')">Rotate 30</button>
             <button class="btn" id="eraBtn" onclick="t('era')">Eraser</button>
             <button class="btn" id="drawBtn" onclick="t('draw')">Draw</button>
-            <button class="btn" id="smBtn" onclick="t('sm')">Smooth</button>
             <button class="btn" id="textBtn" onclick="t('text')">Text</button>
         </div>
     </div>
 
     <div id="brushPanel" class="panel">
-        <span class="close-x" onclick="p('brush')">✕</span>
-        <label style="font-size:10px">SIZE & OPACITY</label>
-        <input type="range" id="size" min="5" max="200" value="50">
-        <input type="range" id="opac" min="5" max="100" value="100">
+        <input type="range" id="size" min="5" max="200" value="40">
+        <input type="range" id="opac" min="1" max="100" value="100">
     </div>
 
     <div id="colorPanel" class="panel">
-        <span class="close-x" onclick="p('color')">✕</span>
-        <div id="pal" class="grid" style="grid-template-columns: repeat(6, 1fr);"></div>
-        <input type="range" min="0" max="360" class="rainbow" oninput="genP(this.value)">
+        <div id="fixedPal" class="grid" style="grid-template-columns: repeat(6, 1fr);"></div>
+        <div id="slidePal" class="grid" style="grid-template-columns: repeat(6, 1fr); margin-top:5px;"></div>
+        <input type="range" min="0" max="360" style="width:100%; height:30px; margin-top:10px;" oninput="genShades(this.value)">
     </div>
 
-    <nav class="bottom-nav">
-        <button class="btn" onclick="p('menu')">Menu</button>
+    <nav class="nav">
+        <button class="btn" id="menuBtn" onclick="p('menu')">Menu</button>
         <button class="btn" id="toolsBtn" onclick="p('tools')">Tools</button>
         <button class="btn" id="lockBtn" onclick="toggleEdit()">Edit</button>
         <button class="btn" id="brushBtn" onclick="p('brush')">Brush</button>
@@ -68,38 +70,30 @@
     </nav>
 
     <script>
-        const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
-        let baseImg = null, history = [], scale = 1, ox = 0, oy = 0, mode = 'pan', curCol = '#ffffff', lastD = 0, sx, sy;
-        let menuOpen = false;
+        const base = document.getElementById('baseCvs'), btx = base.getContext('2d');
+        const edit = document.getElementById('editCvs'), etx = edit.getContext('2d');
+        let scale = 1, ox = 0, oy = 0, history = [], mode = 'pan', curCol = '#ffffff', lastD = 0, sx, sy, qState = null;
 
         function p(id) {
             const el = document.getElementById(id+'Panel');
             const vis = el.style.display === 'block';
             document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
-            document.querySelectorAll('.bottom-nav .btn').forEach(b => b.classList.remove('active'));
-            if(!vis) { el.style.display = 'block'; document.getElementById(id+'Btn')?.classList.add('active'); menuOpen = true; }
-            else { menuOpen = false; }
+            if(!vis && id !== 'none') el.style.display = 'block';
         }
 
         function toggleEdit() {
-            if(mode !== 'pan') { mode = 'pan'; document.getElementById('lockBtn').classList.remove('active'); }
-            else { mode = 'draw'; document.getElementById('lockBtn').classList.add('active'); }
-            document.getElementById('lockBtn').innerText = (mode === 'pan') ? 'Lock' : 'Edit';
-        }
-
-        function save() { 
-            if(history.length > 20) history.shift();
-            history.push(ctx.getImageData(0,0,cvs.width,cvs.height));
-            localStorage.setItem('piced_save', cvs.toDataURL());
+            mode = (mode === 'pan') ? 'draw' : 'pan';
+            document.getElementById('lockBtn').classList.toggle('active', mode !== 'pan');
+            edit.style.pointerEvents = (mode === 'pan') ? 'none' : 'auto';
         }
 
         function load(url) {
             const m = new Image(); m.crossOrigin = "anonymous";
             m.onload = () => {
-                cvs.width = m.width; cvs.height = m.height;
-                ctx.drawImage(m,0,0); baseImg = m;
+                base.width = edit.width = m.width; base.height = edit.height = m.height;
+                btx.drawImage(m, 0, 0); etx.clearRect(0,0,edit.width,edit.height);
                 scale = Math.min(innerWidth/m.width, (innerHeight-250)/m.height);
-                ox = 0; oy = 0; save(); upCam(); p('none');
+                ox = 0; oy = 0; history = []; upCam(); p('none');
             }; m.src = url;
         }
 
@@ -107,74 +101,86 @@
             if(type==='up'){
                 const i=document.createElement('input'); i.type='file';
                 i.onchange=e=>{ const r=new FileReader(); r.onload=v=>load(v.target.result); r.readAsDataURL(e.target.files[0]); }; i.click();
-            } else if(type==='dl'){ const a=document.createElement('a'); a.download='edit.png'; a.href=cvs.toDataURL(); a.click(); }
-            else if(type==='clr'){ if(confirm('Clear?')){ ctx.drawImage(baseImg,0,0); save(); }}
+            } else if(type==='dl'){
+                const temp = document.createElement('canvas'); temp.width=base.width; temp.height=base.height;
+                const tctx = temp.getContext('2d'); tctx.drawImage(base,0,0); tctx.drawImage(edit,0,0);
+                const a=document.createElement('a'); a.download='Edit.png'; a.href=temp.toDataURL(); a.click();
+            } else if(type==='qs'){ qState = etx.getImageData(0,0,edit.width,edit.height); }
+            else if(type==='clr'){ if(confirm('Clear?')) etx.clearRect(0,0,edit.width,edit.height); }
         }
 
         function t(v) {
-            if(v === mode) { mode = 'pan'; document.getElementById(v+'Btn')?.classList.remove('active'); return; }
-            if(v==='undo'){ if(history.length > 1){ history.pop(); ctx.putImageData(history[history.length-1],0,0); }}
+            if(v==='undo'){ if(history.length > 0) etx.putImageData(history.pop(),0,0); }
             else if(v==='rot'){
                 const q=document.createElement('canvas'), x=q.getContext('2d');
-                q.width=cvs.height; q.height=cvs.width; x.translate(q.width/2, q.height/2); x.rotate(30*Math.PI/180);
-                x.drawImage(cvs,-cvs.width/2,-cvs.height/2); cvs.width=q.width; cvs.height=q.height; ctx.drawImage(q,0,0); save();
-            } else { mode = v; document.querySelectorAll('#toolsPanel .btn').forEach(b=>b.classList.remove('active')); document.getElementById(v+'Btn').classList.add('active'); }
+                q.width=base.height; q.height=base.width; x.translate(q.width/2, q.height/2); x.rotate(30*Math.PI/180);
+                x.drawImage(base,-base.width/2,-base.height/2); base.width=edit.width=q.width; base.height=edit.height=q.height;
+                btx.drawImage(q,0,0); x.clearRect(-q.width,-q.height,q.width*2,q.height*2);
+                x.drawImage(edit,-edit.height/2,-edit.width/2); etx.drawImage(q,0,0); upCam();
+            } else { mode = (mode === v) ? 'pan' : v; document.querySelectorAll('#toolsPanel .btn').forEach(b=>b.classList.remove('active')); if(mode===v) document.getElementById(v+'Btn')?.classList.add('active'); }
         }
 
-        function upCam(){ cvs.style.transform = `translate(${ox}px, ${oy}px) scale(${scale})`; }
+        function upCam(){ const tr = `translate(${ox}px, ${oy}px) scale(${scale})`; base.style.transform = edit.style.transform = tr; }
 
-        function genP(h) {
-            const g = document.getElementById('pal'); g.innerHTML = '';
-            const core = ['#000','#fff','#D4AF37','#C0C0C0','#ffdbac','#8d5524'];
-            core.forEach(c => { let d=document.createElement('div'); d.style.background=c; d.style.height='30px'; d.onclick=()=>{curCol=c; document.getElementById('colorBtn').style.color=c;}; g.appendChild(d); });
+        function setCol(c, el) { 
+            curCol = c; document.querySelectorAll('.shade-box').forEach(b => b.classList.remove('col-active'));
+            el.classList.add('col-active'); document.getElementById('colorBtn').style.color = c;
+        }
+
+        function genShades(h) {
+            const s = document.getElementById('slidePal'); s.innerHTML = '';
+            for(let i=1; i<=6; i++) {
+                const c = `hsl(${h}, 100%, ${i*14}%)`; const d = document.createElement('div');
+                d.className = 'shade-box'; d.style.background = c; d.onclick = () => setCol(c, d); s.appendChild(d);
+            }
         }
 
         function getXY(e) {
-            const r=cvs.getBoundingClientRect(), t=e.touches[0];
-            return { x: (t.clientX-r.left)*(cvs.width/r.width), y: (t.clientY-r.top)*(cvs.height/r.height) };
+            const r=edit.getBoundingClientRect(), t=e.touches[0];
+            return { x: (t.clientX-r.left)*(edit.width/r.width), y: (t.clientY-r.top)*(edit.height/r.height) };
         }
 
         window.addEventListener('touchstart', e => {
-            if(menuOpen) return;
             if(e.touches.length === 1){
-                if(mode === 'pan'){ sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
-                else if(mode==='text'){ const p=getXY(e), txt=prompt("Text:"); if(txt){ ctx.fillStyle=curCol; ctx.font=document.getElementById('size').value+"px Arial"; ctx.fillText(txt,p.x,p.y); save(); }}
-                else save();
+                if(mode==='pan'){ sx=e.touches[0].clientX-ox; sy=e.touches[0].clientY-oy; }
+                else { if(history.length > 10) history.shift(); history.push(etx.getImageData(0,0,edit.width,edit.height)); 
+                    if(mode==='text'){ const p=getXY(e), t=prompt("Text:"); if(t){ etx.fillStyle=curCol; etx.font=document.getElementById('size').value+"px Arial"; etx.fillText(t,p.x,p.y); }}
+                }
             }
         });
 
         window.addEventListener('touchmove', e => {
-            if(menuOpen) return;
             if(e.touches.length === 2){
                 let d = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY);
                 let midX = (e.touches[0].pageX + e.touches[1].pageX)/2, midY = (e.touches[0].pageY + e.touches[1].pageY)/2;
-                if(lastD>0) {
-                    let ratio = d/lastD; scale *= ratio;
-                    ox = midX - (midX - ox) * ratio; oy = midY - (midY - oy) * ratio;
-                }
+                if(lastD>0) { let r = d/lastD; scale *= r; ox = midX - (midX - ox) * r; oy = midY - (midY - oy) * r; }
                 lastD = d; upCam();
             } else if (e.touches.length === 1) {
                 if(mode === 'pan'){ ox=e.touches[0].clientX-sx; oy=e.touches[0].clientY-sy; upCam(); }
-                else if(['draw','era','sm'].includes(mode)){
+                else if(['draw','era'].includes(mode)){
                     const p=getXY(e), s=document.getElementById('size').value, op=document.getElementById('opac').value/100;
-                    ctx.globalAlpha=op; ctx.globalCompositeOperation=(mode==='era')?'destination-out':'source-over';
-                    if(mode==='sm'){ ctx.globalAlpha=0.05; ctx.filter='blur(8px)'; ctx.drawImage(cvs,p.x-s,p.y-s,s*2,s*2,p.x-s,p.y-s,s*2,s*2); ctx.filter='none'; }
-                    else { ctx.fillStyle=curCol; ctx.beginPath(); ctx.arc(p.x,p.y,s/2,0,Math.PI*2); ctx.fill(); }
-                    ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+                    etx.globalAlpha=op; etx.globalCompositeOperation=(mode==='era')?'destination-out':'source-over';
+                    etx.fillStyle=curCol; btx.filter=(mode==='sm'?'blur(5px)':'none');
+                    etx.beginPath(); etx.arc(p.x,p.y,s/2,0,Math.PI*2); etx.fill();
                 }
             }
         }, {passive:false});
 
-        window.addEventListener('touchend', () => { lastD=0; if(localStorage.getItem('piced_save')) save(); });
+        window.addEventListener('touchend', () => lastD=0);
 
-        // Library Loader
-        const libs = ['car','landscape','portrait','animal'];
-        libs.forEach(cat => { for(let i=0;i<2;i++){ const img=document.createElement('img'); img.className='lib-thumb'; img.src=`https://picsum.photos/400?random=${cat+i}`; img.onclick=()=>load(img.src); document.getElementById('lib').appendChild(img); }});
+        const practice = [
+            {n:'Scenery', u:'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800'},
+            {n:'Lady', u:'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800'},
+            {n:'Dino', u:'https://images.unsplash.com/photo-1517923332205-3e2840742f56?w=800'}
+        ];
+        practice.forEach(pImg => {
+            const i=document.createElement('img'); i.className='thumb'; i.src=pImg.u; i.onclick=()=>load(pImg.u); document.getElementById('libGrid').appendChild(i);
+        });
 
-        const last = localStorage.getItem('piced_save');
-        if(last && confirm("Resume?")) load(last);
-        else load('https://picsum.photos/800/600');
-        genP(0);
+        const core = ['#000','#fff','#D4AF37','#C0C0C0','#ffdbac','#8d5524'];
+        core.forEach(c => { const d=document.createElement('div'); d.className='shade-box'; d.style.background=c; d.onclick=()=>setCol(c, d); document.getElementById('fixedPal').appendChild(d); });
+        
+        genShades(0); load(practice[0].u);
     </script>
 </body>
 </html>
