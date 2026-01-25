@@ -3,194 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V4.1</title>
     <style>
-        body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
-        canvas { position: absolute; touch-action: none; image-rendering: pixelated; z-index: 1; }
-        .nav { height: 90px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 25px; border-top: 1px solid #444; z-index: 3000; }
-        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; cursor: pointer; }
-        .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
-        .panel { position: absolute; bottom: 110px; width: 94%; left: 3%; background: rgba(10,10,10,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 3100; border: 1px solid #444; box-sizing: border-box; max-height: 70vh; overflow-y: auto; }
-        .gallery { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #333; min-height: 60px; }
-        .thumb { min-width: 60px; height: 60px; border: 1px solid #555; border-radius: 5px; background-size: cover; flex-shrink: 0; }
-        .slider-wrap { margin-bottom: 12px; }
-        .slider-label { font-size: 9px; color: #888; letter-spacing: 1px; margin-bottom: 4px; display: block; }
-        .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        body { margin: 0; background: #000; color: white; height: 100vh; overflow: hidden; font-family: sans-serif; display: flex; flex-direction: column; }
+        #vp { flex: 1; position: relative; background: #111; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        canvas { position: absolute; touch-action: none; z-index: 1; image-rendering: pixelated; }
+        .nav { height: 85px; background: #151515; display: flex; justify-content: space-around; align-items: center; z-index: 3000; border-top: 1px solid #444; padding-bottom: 10px; }
+        .btn { padding: 12px; background: #222; border: 1px solid #555; color: white; font-size: 11px; border-radius: 8px; font-weight: bold; }
+        .panel { position: absolute; bottom: 100px; width: 92%; left: 4%; background: #1a1a1a; border-radius: 12px; padding: 15px; display: none; z-index: 3100; border: 1px solid #00ff64; box-sizing: border-box; }
+        #gal, #samp { display: flex; gap: 10px; overflow-x: auto; margin-top: 10px; min-height: 70px; border-top: 1px solid #333; padding-top: 10px; }
+        .tmb { width: 60px; height: 60px; border: 1px solid #555; background-size: cover; flex-shrink: 0; border-radius: 4px; }
+        .lbl { font-size: 10px; color: #888; margin-top: 10px; text-transform: uppercase; }
     </style>
 </head>
 <body>
-    <div id="vp">
-        <canvas id="baseCvs"></canvas>
-        <canvas id="editCvs"></canvas>
-    </div>
-
-    <div id="menuPanel" class="panel">
-        <div class="slider-label">QSAVE SLOTS (TAP TO LOAD)</div>
-        <div id="qGallery" class="gallery"></div>
-        <div class="tool-grid">
-            <button class="btn" onclick="Engine.io('up')">Import Pic</button>
-            <button class="btn" onclick="Engine.io('dl')">Export</button>
-            <button class="btn" onclick="Engine.qSave()">QSave</button>
-            <button class="btn" onclick="Engine.vaultSave()">Vault</button>
-            <button class="btn" onclick="Engine.resetView()">Center</button>
-            <button class="btn" onclick="location.reload()" style="color:yellow">Reload</button>
+    <div id="vp"><canvas id="bc"></canvas><canvas id="ec"></canvas></div>
+    
+    <div id="mP" class="panel">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn" onclick="UI.up()">IMPORT PIC</button>
+            <button class="btn" onclick="DB.save()" style="border-color:#00ff64">SAVE TO VAULT</button>
+        </div>
+        
+        <div class="lbl">Your Vault (No 5MB Limit)</div>
+        <div id="gal"></div>
+        
+        <div class="lbl">Sample Gallery</div>
+        <div id="samp">
+            <div class="tmb" style="background-image:url('https://picsum.photos/id/237/200')" onclick="UI.loadSample('https://picsum.photos/id/237/800')"></div>
+            <div class="tmb" style="background-image:url('https://picsum.photos/id/15/200')" onclick="UI.loadSample('https://picsum.photos/id/15/800')"></div>
+            <div class="tmb" style="background-image:url('https://picsum.photos/id/10/200')" onclick="UI.loadSample('https://picsum.photos/id/10/800')"></div>
         </div>
     </div>
 
-    <div id="toolsPanel" class="panel">
-        <div class="tool-grid">
-            <button class="btn" onclick="Engine.undo()">Undo</button>
-            <button class="btn" id="btn-bridge" onclick="Engine.setMode('bridge')">Bridge</button>
-            <button class="btn" id="btn-smooth" onclick="Engine.setMode('smooth')">Smooth</button>
-            <button class="btn" id="btn-pick" onclick="Engine.setMode('pick')">Picker</button>
-            <button class="btn" id="btn-paste" onclick="Engine.setMode('paste')">Paste</button>
-            <button class="btn" id="btn-sticker" onclick="Engine.setMode('sticker')">Sticker</button>
-            <button class="btn" onclick="Engine.clear()" style="color:red">Burn</button>
-        </div>
+    <div class="nav">
+        <button class="btn" onclick="UI.tog()">MENU</button>
+        <button id="eB" class="btn" onclick="UI.edit()">EDIT OFF</button>
+        <button class="btn" onclick="location.reload()">RELOAD</button>
     </div>
 
-    <div id="brushPanel" class="panel">
-        <div class="slider-wrap"><span class="slider-label">SIZE</span><input type="range" id="bSize" min="2" max="200" value="40" style="width:100%"></div>
-        <div class="slider-wrap"><span class="slider-label">ALPHA</span><input type="range" id="bAlpha" min="1" max="100" value="100" style="width:100%"></div>
-    </div>
-
-    <nav class="nav">
-        <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
-        <button id="btn-tools" class="btn" onclick="Engine.toggleUI('tools')">Tools</button>
-        <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
-        <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
-    </nav>
-
-    <script>
-        const Engine = {
-            base: document.getElementById('baseCvs'), edit: document.getElementById('editCvs'),
-            btx: null, etx: null, mode: 'pan', scale: 1, ox: 0, oy: 0, curCol: 'red',
-            history: [], clipboard: null,
-
-            init() {
-                this.btx = this.base.getContext('2d', {willReadFrequently: true});
-                this.etx = this.edit.getContext('2d', {willReadFrequently: true});
-                // Start with a blank canvas so screen isn't black
-                this.base.width = this.edit.width = 800;
-                this.base.height = this.edit.height = 800;
-                this.btx.fillStyle = '#222';
-                this.btx.fillRect(0,0,800,800);
-                this.resetView();
-                this.renderGallery();
-            },
-
-            toggleUI(t) {
-                const p = document.getElementById(t+'Panel');
-                const isOff = p.style.display !== 'block';
-                document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
-                if(isOff) p.style.display = 'block';
-            },
-
-            toggleEdit() {
-                this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
-                document.getElementById('btn-edit').innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
-            },
-
-            setMode(m) {
-                this.mode = m;
-                document.querySelectorAll('.tool-grid .btn').forEach(b => b.classList.remove('glow-active'));
-                const target = document.getElementById('btn-'+m);
-                if(target) target.classList.add('glow-active');
-            },
-
-            io(t) {
-                if(t === 'up') {
-                    const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*';
-                    i.onchange = e => {
-                        const url = URL.createObjectURL(e.target.files[0]);
-                        const m = new Image(); m.onload = () => {
-                            if(this.mode === 'pan') {
-                                // If first load, set base
-                                this.base.width = this.edit.width = m.width;
-                                this.base.height = this.edit.height = m.height;
-                                this.btx.drawImage(m, 0, 0);
-                                this.resetView();
-                            } else {
-                                // If already editing, set to clipboard for zoom-paste
-                                this.clipboard = m; this.setMode('sticker');
-                            }
-                            document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-                        }; m.src = url;
-                    }; i.click();
-                } else {
-                    const a = document.createElement('a'); a.download = 'art.png';
-                    const c = document.createElement('canvas'); c.width = this.base.width; c.height = this.base.height;
-                    const x = c.getContext('2d'); x.drawImage(this.base, 0, 0); x.drawImage(this.edit, 0, 0);
-                    a.href = c.toDataURL(); a.click();
-                }
-            },
-
-            handleTap(x, y) {
-                if(!this.clipboard) return; this.save();
-                let w = this.clipboard.width, h = this.clipboard.height;
-                const r = (window.innerWidth*0.5/this.scale)/w; w *= r; h *= r;
-                this.etx.drawImage(this.clipboard, x - w/2, y - h/2, w, h);
-                this.setMode('draw');
-            },
-
-            bridge(x,y,sz) {
-                const d = this.btx.getImageData(x-sz,y-sz,sz*2,sz*2).data;
-                let r=0,g=0,b=0,c=0; for(let i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];c++;}
-                this.etx.fillStyle = `rgb(${r/c},${g/c},${b/c})`;
-                this.etx.beginPath(); this.etx.arc(x,y,sz/2,0,Math.PI*2); this.etx.fill();
-            },
-
-            qSave() {
-                let s = JSON.parse(localStorage.getItem('qS')||"[]"); if(s.length>=5) s.shift();
-                s.push(this.edit.toDataURL()); localStorage.setItem('qS', JSON.stringify(s)); this.renderGallery();
-            },
-
-            renderGallery() {
-                const g = document.getElementById('qGallery'); if(!g) return; g.innerHTML = '';
-                const s = JSON.parse(localStorage.getItem('qS')||"[]");
-                s.forEach(d => {
-                    const t = document.createElement('div'); t.className = 'thumb'; t.style.backgroundImage = `url(${d})`;
-                    t.onclick = () => { const i = new Image(); i.onload = () => this.etx.drawImage(i,0,0); i.src = d; };
-                    g.appendChild(t);
-                });
-            },
-
-            resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
-            update() { this.base.style.transform = this.edit.style.transform = `translate(${this.ox}px,${this.oy}px) scale(${this.scale})`; },
-            save() { if(this.history.length > 10) this.history.shift(); this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height)); },
-            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
-            clear() { if(confirm('Burn?')) this.etx.clearRect(0,0,this.edit.width,this.edit.height); },
-            vaultSave() { localStorage.setItem('v_'+Date.now(), this.edit.toDataURL()); alert('Saved'); }
-        };
-
-        let ld = 0, sx, sy;
-        window.addEventListener('touchstart', e => {
-            if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-            const r = Engine.edit.getBoundingClientRect();
-            const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width), y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-            if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
-                else if(Engine.mode === 'sticker' || Engine.mode === 'paste') Engine.handleTap(x,y);
-                else if(Engine.mode === 'draw' || Engine.mode === 'bridge') Engine.save();
+<script>
+const DB = {
+    db: null,
+    init() {
+        let r = indexedDB.open("PicVault", 1);
+        r.onupgradeneeded = e => e.target.result.createObjectStore("pics", {autoIncrement:true});
+        r.onsuccess = e => { this.db = e.target.result; this.render(); };
+    },
+    save() {
+        let ec = document.getElementById('ec');
+        let d = ec.toDataURL();
+        let tx = this.db.transaction("pics", "readwrite").objectStore("pics").add(d);
+        tx.onsuccess = () => this.render();
+    },
+    render() {
+        let g = document.getElementById('gal'); g.innerHTML = '';
+        this.db.transaction("pics").objectStore("pics").openCursor().onsuccess = e => {
+            let cursor = e.target.result;
+            if (cursor) {
+                let img = document.createElement('div'); img.className = 'tmb';
+                img.style.backgroundImage = `url(${cursor.value})`;
+                img.onclick = () => UI.loadToCanvas(cursor.value);
+                g.prepend(img); cursor.continue();
             }
-        });
-        window.addEventListener('touchmove', e => {
-            if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-            const r = Engine.edit.getBoundingClientRect();
-            const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width), y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-            if(e.touches.length === 2) {
-                let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                if(ld > 0) { Engine.scale *= (d/ld); Engine.update(); } ld = d;
-            } else if(e.touches.length === 1 && Engine.mode === 'pan') {
-                Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update();
-            } else if(e.touches.length === 1 && Engine.mode === 'draw') {
-                Engine.etx.fillStyle = Engine.curCol; Engine.etx.globalAlpha = document.getElementById('bAlpha').value/100;
-                Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
-            } else if(e.touches.length === 1 && Engine.mode === 'bridge') Engine.bridge(x,y,document.getElementById('bSize').value);
-        }, {passive: false});
-        window.addEventListener('touchend', () => { ld = 0; });
-        Engine.init();
-    </script>
+        };
+    }
+};
+
+const UI = {
+    mode: 'pan',
+    tog() { let p = document.getElementById('mP'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; },
+    edit() { 
+        this.mode = this.mode === 'pan' ? 'draw' : 'pan'; 
+        document.getElementById('eB').innerText = this.mode === 'pan' ? 'EDIT OFF' : 'EDIT ON';
+        document.getElementById('eB').style.color = this.mode === 'pan' ? 'white' : '#00ff64';
+    },
+    up() {
+        let i = document.createElement('input'); i.type = 'file';
+        i.onchange = e => {
+            let reader = new FileReader();
+            reader.onload = event => this.loadSample(event.target.result);
+            reader.readAsDataURL(e.target.files[0]);
+        };
+        i.click();
+    },
+    loadSample(url) {
+        let img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+            let bc = document.getElementById('bc'), ec = document.getElementById('ec');
+            bc.width = ec.width = img.width; bc.height = ec.height = img.height;
+            bc.getContext('2d').drawImage(img, 0, 0);
+            this.tog(); // Close menu
+        };
+        img.src = url;
+    },
+    loadToCanvas(data) {
+        let img = new Image();
+        img.onload = () => document.getElementById('ec').getContext('2d').drawImage(img, 0, 0);
+        img.src = data;
+        this.tog();
+    }
+};
+
+DB.init();
+</script>
 </body>
 </html>
+
