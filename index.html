@@ -3,35 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PicEd 5.0 Fixed</title>
+    <title>PicEd 5.1</title>
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         #vp { flex: 1; position: relative; background: #111; overflow: hidden; }
-        canvas { position: absolute; touch-action: none; background: #222; width: 100%; height: 100%; }
-        .nav { position: fixed; bottom: 0; left: 0; right: 0; height: 70px; background: #1a1a1a; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #333; z-index: 9999; }
-        .btn { padding: 12px 20px; background: #444; border: 1px solid #666; color: #fff; border-radius: 5px; font-size: 14px; font-weight: bold; }
-        .panel { position: fixed; bottom: 80px; left: 10px; right: 10px; background: rgba(30,30,30,0.95); border: 1px solid #555; border-radius: 10px; padding: 15px; display: none; z-index: 10000; }
-        #gal { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; min-height: 60px; }
-        .tmb { width: 60px; height: 60px; border: 1px solid #fff; background-size: cover; flex-shrink: 0; }
+        canvas { position: absolute; touch-action: none; background: #222; }
+        .nav { position: fixed; bottom: 0; width: 100%; height: 70px; background: #1a1a1a; display: flex; justify-content: center; align-items: center; z-index: 9999; border-top: 1px solid #444; }
+        .btn { padding: 12px 25px; background: #444; color: #fff; border: 1px solid #666; border-radius: 5px; font-weight: bold; margin: 0 10px; }
+        .panel { position: fixed; bottom: 80px; left: 10px; right: 10px; background: #222; padding: 15px; display: none; z-index: 10000; border: 1px solid #555; border-radius: 10px; }
+        #gal { display: flex; gap: 10px; overflow-x: auto; min-height: 60px; margin-bottom: 15px; padding-bottom: 5px; }
+        .tmb { width: 65px; height: 65px; border: 1px solid #fff; background-size: cover; flex-shrink: 0; }
+        #upBtn { background: #335533; z-index: 10001; }
     </style>
 </head>
 <body>
-    <div id="vp">
-        <canvas id="bc"></canvas>
-        <canvas id="ec"></canvas>
-    </div>
-
+    <div id="vp"><canvas id="bc"></canvas></div>
     <div id="mP" class="panel">
         <div id="gal"></div>
-        <button class="btn" onclick="UI.up()">Import</button>
+        <button id="upBtn" class="btn" onclick="UI.up()">Import New</button>
         <button class="btn" onclick="DB.save()">Save to Vault</button>
     </div>
-
     <div class="nav">
-        <button class="btn" onclick="UI.tog('mP')">Vault</button>
-        <button id="eB" class="btn" onclick="UI.edit()">Pan</button>
+        <button class="btn" onclick="UI.tog('mP')">Open Vault</button>
     </div>
-
 <script>
 const DB = {
     db: null,
@@ -42,104 +36,67 @@ const DB = {
     },
     save() {
         if(!Engine.bc.width) return;
-        let c = document.createElement('canvas');
-        c.width = Engine.bc.width; c.height = Engine.bc.height;
-        let x = c.getContext('2d');
-        x.drawImage(Engine.bc, 0, 0);
-        x.drawImage(Engine.ec, 0, 0);
         let tx = this.db.transaction("pics", "readwrite");
-        tx.objectStore("pics").add(c.toDataURL());
-        tx.oncomplete = () => this.render();
+        tx.objectStore("pics").add(Engine.bc.toDataURL());
+        tx.oncomplete = () => { this.render(); alert("Saved!"); };
     },
     render() {
         let g = document.getElementById('gal'); g.innerHTML = '';
         this.db.transaction("pics").objectStore("pics").openCursor().onsuccess = e => {
-            let cursor = e.target.result;
-            if (cursor) {
-                let img = document.createElement('div');
-                img.className = 'tmb';
-                img.style.backgroundImage = `url(${cursor.value})`;
-                img.onclick = () => UI.loadToCanvas(cursor.value);
-                g.prepend(img); cursor.continue();
+            let cur = e.target.result;
+            if (cur) {
+                let d = document.createElement('div'); d.className = 'tmb';
+                d.style.backgroundImage = `url(${cur.value})`;
+                d.onclick = () => UI.load(cur.value);
+                g.prepend(d); cur.continue();
             }
         };
     }
 };
-
 const UI = {
-    mode: 'pan',
-    tog(id) { let p = document.getElementById(id); p.style.display = p.style.display === 'block' ? 'none' : 'block'; },
-    edit() {
-        this.mode = this.mode === 'pan' ? 'draw' : 'pan';
-        document.getElementById('eB').innerText = this.mode === 'pan' ? 'Pan' : 'Draw';
-    },
+    tog(id) { let p = document.getElementById(id); p.style.display = p.style.display==='block'?'none':'block'; },
     up() {
         let i = document.createElement('input'); i.type = 'file';
         i.onchange = e => {
-            let f = e.target.files[0];
             let r = new FileReader();
-            r.onload = ev => {
-                let img = new Image();
-                img.onload = () => Engine.setup(img);
-                img.src = ev.target.result;
-            };
-            r.readAsDataURL(f);
+            r.onload = ev => this.load(ev.target.result);
+            r.readAsDataURL(e.target.files[0]);
         };
         i.click();
     },
-    loadToCanvas(data) {
+    load(data) {
         let img = new Image();
-        img.onload = () => Engine.setup(img);
+        img.onload = () => { Engine.setup(img); this.tog('mP'); };
         img.src = data;
     }
 };
-
 const Engine = {
-    bc: document.getElementById('bc'),
-    ec: document.getElementById('ec'),
-    btx: null, etx: null, ox: 0, oy: 0, scale: 1,
+    bc: document.getElementById('bc'), btx: null, ox: 0, oy: 0,
     setup(img) {
-        this.bc.width = this.ec.width = img.width;
-        this.bc.height = this.ec.height = img.height;
+        this.bc.width = img.width; this.bc.height = img.height;
         this.btx.drawImage(img, 0, 0);
-        this.ox = 0; this.oy = 0; this.scale = 1; 
+        this.ox = (window.innerWidth - img.width) / 2;
+        this.oy = (window.innerHeight - img.height) / 2;
         this.update();
     },
-    update() {
-        let s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
-        this.bc.style.transform = this.ec.style.transform = s;
-    },
-    init() {
-        this.btx = this.bc.getContext('2d');
-        this.etx = this.ec.getContext('2d');
-        DB.init();
-    }
+    update() { this.bc.style.transform = `translate(${this.ox}px, ${this.oy}px)`; },
+    init() { this.btx=this.bc.getContext('2d'); DB.init(); }
 };
-
-let sx, sy, startOx, startOy;
+let sx, sy, bx, by;
 window.addEventListener('touchstart', e => {
-    if (e.target.closest('.nav') || e.target.closest('.panel')) return;
-    if (UI.mode === 'pan') {
-        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-        startOx = Engine.ox; startOy = Engine.oy;
-    }
+    if(e.target.closest('.nav') || e.target.closest('.panel')) return;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    bx = Engine.ox; by = Engine.oy;
 });
 window.addEventListener('touchmove', e => {
-    if (e.target.closest('.nav') || e.target.closest('.panel')) return;
-    if (UI.mode === 'pan') {
-        Engine.ox = startOx + (e.touches[0].clientX - sx);
-        Engine.oy = startOy + (e.touches[0].clientY - sy);
-        Engine.update();
-    } else {
-        let r = Engine.ec.getBoundingClientRect();
-        let x = (e.touches[0].clientX - r.left) * (Engine.ec.width / r.width);
-        let y = (e.touches[0].clientY - r.top) * (Engine.ec.height / r.height);
-        Engine.etx.fillStyle = 'red';
-        Engine.etx.beginPath(); Engine.etx.arc(x, y, 10, 0, Math.PI * 2); Engine.etx.fill();
-    }
+    if(e.target.closest('.nav') || e.target.closest('.panel')) return;
+    Engine.ox = bx + (e.touches[0].clientX - sx);
+    Engine.oy = by + (e.touches[0].clientY - sy);
+    Engine.update();
 }, {passive: false});
-
 Engine.init();
 </script>
 </body>
 </html>
+
+        
