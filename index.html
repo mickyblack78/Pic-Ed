@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -8,230 +8,176 @@
         body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
         #top-nav { position: fixed; top: 0; width: 100%; height: 60px; background: #222; display: flex; justify-content: space-around; align-items: center; z-index: 100; border-bottom: 1px solid #444; }
         .nav-btn { background: #333; border: 1px solid #555; color: white; padding: 10px; border-radius: 5px; cursor: pointer; min-width: 60px; text-align: center; transition: 0.2s; }
-        .glow-active { box-shadow: 0 0 15px #00ff00; border-color: #00ff00 !important; }
-        
-        #canvas-container { position: absolute; top: 60px; bottom: 0; width: 100%; display: flex; justify-content: center; align-items: center; background: #111; overflow: hidden; }
+        .glow-active { box-shadow: 0 0 15px #00ff00 !important; border-color: #00ff00 !important; background: #444 !important; }
+        #canvas-container { position: absolute; top: 60px; bottom: 0; width: 100%; display: flex; justify-content: center; align-items: center; background: #111; }
         canvas { background: white; box-shadow: 0 0 20px rgba(0,0,0,0.5); touch-action: none; }
-
         .panel { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(34, 34, 34, 0.95); padding: 15px; border-radius: 10px; display: none; z-index: 200; width: 90%; max-width: 400px; border: 1px solid #444; }
         .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .tool-btn { background: #444; border: 1px solid #666; color: white; padding: 10px; border-radius: 5px; font-size: 12px; }
-
-        /* FIXED COLOR SLIDER */
-        #bAlpha {
-            -webkit-appearance: none; width: 100%; height: 20px; border-radius: 10px;
-            background: linear-gradient(to right, #fff, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #000);
-            outline: none; border: 1px solid #444; margin: 10px 0;
-        }
-        #bAlpha::-webkit-slider-thumb {
-            -webkit-appearance: none; width: 25px; height: 25px; background: #fff; border: 2px solid #000; border-radius: 50%;
-        }
+        .tool-btn { background: #444; border: 1px solid #666; color: white; padding: 8px 4px; border-radius: 5px; font-size: 11px; min-height: 35px; cursor: pointer; }
+        #color-picker-container { display: none; margin-top: 10px; }
+        input[type="color"] { width: 100%; height: 40px; border: none; border-radius: 5px; background: none; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="top-nav">
-    <div id="btn-vault" class="nav-btn" onclick="toggleUI('vault-panel', 'btn-vault')">Vault</div>
-    <div id="btn-tools" class="nav-btn" onclick="toggleUI('tool-panel', 'btn-tools')">Tools</div>
-    <div id="btn-brush" class="nav-btn" onclick="toggleUI('brush-panel', 'btn-brush')">Brush</div>
+    <div id="btn-vault" class="nav-btn" onclick="toggleUI('vault-panel', 'btn-vault')">Gallery</div>
+    <div id="btn-tools" class="nav-btn" onclick="toggleUI('tool-panel', 'btn-tools')">Action</div>
+    <div id="btn-brush" class="nav-btn" onclick="toggleUI('brush-panel', 'btn-brush')">Paint</div>
     <div id="btn-edit-toggle" class="nav-btn" onclick="toggleEdit()">Edit</div>
 </div>
 
-<div id="canvas-container">
-    <canvas id="mainCanvas"></canvas>
-</div>
+<div id="canvas-container"><canvas id="mainCanvas"></canvas></div>
 
 <div id="vault-panel" class="panel">
-    <input type="file" id="import-file" style="display:none" onchange="handleImport(event)">
     <div class="tool-grid">
-        <button class="tool-btn" id="btn-import" onclick="document.getElementById('import-file').click()">Import</button>
+        <button class="tool-btn" onclick="document.getElementById('import-file').click()">Import</button>
         <button class="tool-btn" onclick="saveToDB()">Save DB</button>
         <button class="tool-btn" onclick="loadFromDB()">Load DB</button>
+        <button class="tool-btn" style="color: #ff4444;" onclick="deleteFromDB()">Delete</button>
     </div>
+    <input type="file" id="import-file" style="display:none" onchange="handleImport(event)">
 </div>
 
 <div id="tool-panel" class="panel">
     <div class="tool-grid">
         <button class="tool-btn" id="btn-draw" onclick="setMode('draw', 'btn-draw')">Draw</button>
         <button class="tool-btn" id="btn-erase" onclick="setMode('erase', 'btn-erase')">Erase</button>
+        <button class="tool-btn" id="btn-select" onclick="setMode('select', 'btn-select')">Select</button>
+        <button class="tool-btn" onclick="copySelection()">Copy</button>
+        <button class="tool-btn" onclick="cutSelection()">Cut</button>
+        <button class="tool-btn" onclick="pasteSelection()">Paste</button>
         <button class="tool-btn" onclick="undo()">Undo</button>
         <button class="tool-btn" onclick="clearCanvas()">Clear</button>
     </div>
 </div>
 
 <div id="brush-panel" class="panel">
-    <input type="range" id="bAlpha" min="0" max="100" value="50" oninput="updateBrush()">
-    <input type="range" id="bSize" min="1" max="100" value="10" oninput="updateBrush()">
+    <button class="tool-btn" onclick="togglePicker()">Toggle Color Picker</button>
+    <div id="color-picker-container">
+        <input type="color" id="colorInput" value="#000000" oninput="brushColor = this.value">
+    </div>
+    <p>Size</p>
+    <input type="range" id="bSize" min="1" max="100" value="10" oninput="brushSize = this.value" style="width:100%">
 </div>
 
 <script>
-    const cvs = document.getElementById('mainCanvas');
-    const ctx = cvs.getContext('2d');
+    const cvs = document.getElementById('mainCanvas'), ctx = cvs.getContext('2d');
     let drawing = false, currentMode = 'draw', isEditMode = false;
-    let brushSize = 10, brushColor = '#000', history = [], stickerImg = null;
-    let db;
+    let brushSize = 10, brushColor = '#000000', history = [], stickerImg = null;
+    let startX, startY, selectionData = null, db;
 
-    // INDEXED DB
     const request = indexedDB.open("DrawingAppDB", 1);
-    request.onupgradeneeded = e => {
-        db = e.target.result;
-        db.createObjectStore("saves", { keyPath: "id" });
-    };
+    request.onupgradeneeded = e => { db = e.target.result; db.createObjectStore("saves", { keyPath: "id" }); };
     request.onsuccess = e => db = e.target.result;
 
     function initCanvas() {
         const container = document.getElementById('canvas-container');
-        cvs.width = container.clientWidth * 0.8;
-        cvs.height = container.clientHeight * 0.8;
+        cvs.width = container.clientWidth * 0.95;
+        cvs.height = container.clientHeight * 0.9;
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, cvs.width, cvs.height);
         saveState();
     }
 
-    function saveToDB() {
-        const tx = db.transaction("saves", "readwrite");
-        tx.objectStore("saves").put({ id: "lastSave", data: cvs.toDataURL() });
+    function togglePicker() {
+        const p = document.getElementById('color-picker-container');
+        p.style.display = p.style.display === 'block' ? 'none' : 'block';
     }
 
-    function loadFromDB() {
-        const tx = db.transaction("saves", "readonly");
-        tx.objectStore("saves").get("lastSave").onsuccess = e => {
-            if (e.target.result) {
-                const img = new Image();
-                img.onload = () => {
-                    ctx.clearRect(0,0,cvs.width,cvs.height);
-                    ctx.drawImage(img,0,0);
-                    saveState();
-                };
-                img.src = e.target.result.data;
-            }
-        };
-    }
-
-    /* FIXED FUNCTIONS */
-    function setMode(mode, btnId) {
+    function setMode(mode, id) {
         currentMode = mode;
-        document.querySelectorAll('.nav-btn, .tool-btn').forEach(btn => btn.classList.remove('glow-active'));
-        if (btnId) {
-            const el = document.getElementById(btnId);
-            if(el) el.classList.add('glow-active');
-        }
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('glow-active'));
+        if(id) document.getElementById(id).classList.add('glow-active');
     }
 
-    function toggleUI(panelId, btnId) {
-        const panel = document.getElementById(panelId);
-        const isOpen = panel.style.display === 'block';
-        document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('glow-active'));
-        if (!isOpen) {
-            panel.style.display = 'block';
-            document.getElementById(btnId).classList.add('glow-active');
-        }
+    function toggleUI(id, bid) {
+        const p = document.getElementById(id);
+        const open = p.style.display === 'block';
+        document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
+        document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('glow-active'));
+        if(!open) { p.style.display = 'block'; document.getElementById(bid).classList.add('glow-active'); }
     }
 
     function toggleEdit() {
         isEditMode = !isEditMode;
-        const btn = document.getElementById('btn-edit-toggle');
-        btn.classList.toggle('glow-active', isEditMode);
-        if (!isEditMode) setMode('draw', 'btn-draw');
-    }
-
-    function handleImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (f) => {
-            const img = new Image();
-            img.onload = () => {
-                if (isEditMode) {
-                    stickerImg = img;
-                    setMode('sticker', 'btn-import');
-                } else {
-                    cvs.width = img.width; cvs.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    saveState();
-                }
-                renderCanvas();
-            };
-            img.src = f.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    /* DRAWING LOGIC */
-    function getXY(e) {
-        const rect = cvs.getBoundingClientRect();
-        const t = e.touches ? e.touches[0] : e;
-        return { x: t.clientX - rect.left, y: t.clientY - rect.top };
-    }
-
-    function start(e) {
-        drawing = true;
-        const pos = getXY(e);
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-    }
-
-    function move(e) {
-        if (!drawing) return;
-        const pos = getXY(e);
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = currentMode === 'erase' ? 'white' : brushColor;
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-    }
-
-    function stop() {
-        if (drawing) {
-            drawing = false;
-            saveState();
-        }
-    }
-
-    function updateBrush() {
-        const val = document.getElementById('bAlpha').value;
-        const colors = ['#fff','#f00','#ff0','#0f0','#0ff','#00f','#f0f','#000'];
-        brushColor = colors[Math.floor((val/100) * (colors.length-1))];
-        brushSize = document.getElementById('bSize').value;
+        document.getElementById('btn-edit-toggle').classList.toggle('glow-active', isEditMode);
     }
 
     function saveState() {
         history.push(cvs.toDataURL());
-        if (history.length > 30) history.shift();
+        if(history.length > 20) history.shift();
     }
 
-    function undo() {
-        if (history.length < 2) return;
-        history.pop();
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0,0,cvs.width,cvs.height);
-            ctx.drawImage(img,0,0);
-        };
-        img.src = history[history.length-1];
+    function getXY(e) {
+        const r = cvs.getBoundingClientRect();
+        const t = e.touches ? e.touches[0] : e;
+        return { x: t.clientX - r.left, y: t.clientY - r.top };
     }
 
-    function renderCanvas() {
-        if (stickerImg && currentMode === 'sticker') {
-            ctx.globalAlpha = 0.5;
-            ctx.drawImage(stickerImg, 10, 10, 100, 100);
-            ctx.globalAlpha = 1.0;
+    function start(e) {
+        drawing = true;
+        const p = getXY(e);
+        startX = p.x; startY = p.y;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+    }
+
+    function move(e) {
+        if(!drawing) return;
+        const p = getXY(e);
+        if(currentMode === 'select') {
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0,0,cvs.width,cvs.height);
+                ctx.drawImage(img,0,0);
+                ctx.strokeStyle = '#00ff00';
+                ctx.strokeRect(startX, startY, p.x-startX, p.y-startY);
+            };
+            img.src = history[history.length-1];
+        } else {
+            ctx.lineWidth = brushSize;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = currentMode === 'erase' ? 'white' : brushColor;
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
         }
     }
 
-    function clearCanvas() {
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, cvs.width, cvs.height);
+    function stop(e) {
+        if(!drawing) return;
+        drawing = false;
+        if(currentMode === 'select') {
+            const p = getXY(e);
+            selectionData = { x: startX, y: startY, w: p.x-startX, h: p.y-startY };
+        }
         saveState();
     }
 
-    cvs.addEventListener('mousedown', start);
-    cvs.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', stop);
-    cvs.addEventListener('touchstart', start);
-    cvs.addEventListener('touchmove', move);
-    cvs.addEventListener('touchend', stop);
+    function undo() {
+        if(history.length < 2) return;
+        history.pop();
+        const img = new Image();
+        img.onload = () => { ctx.clearRect(0,0,cvs.width,cvs.height); ctx.drawImage(img,0,0); };
+        img.src = history[history.length-1];
+    }
+
+    function clearCanvas() { ctx.fillStyle = 'white'; ctx.fillRect(0,0,cvs.width,cvs.height); saveState(); }
+
+    function saveToDB() { db.transaction("saves", "readwrite").objectStore("saves").put({ id: "lastSave", data: cvs.toDataURL() }); }
+    function loadFromDB() {
+        db.transaction("saves").objectStore("saves").get("lastSave").onsuccess = e => {
+            if(e.target.result) {
+                const img = new Image();
+                img.onload = () => { ctx.drawImage(img,0,0); saveState(); };
+                img.src = e.target.result.data;
+            }
+        };
+    }
+    function deleteFromDB() { db.transaction("saves", "readwrite").objectStore("saves").delete("lastSave"); }
+
+    cvs.addEventListener('mousedown', start); cvs.addEventListener('mousemove', move); window.addEventListener('mouseup', stop);
+    cvs.addEventListener('touchstart', start); cvs.addEventListener('touchmove', move); cvs.addEventListener('touchend', stop);
     window.onload = initCanvas;
 </script>
 </body>
