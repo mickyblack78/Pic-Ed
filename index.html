@@ -3,119 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - Full 45</title>
+    <title>Pic Ed Stability - V2</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; cursor: crosshair; }
         canvas { position: absolute; touch-action: none; image-rendering: pixelated; }
         
-        /* 🟢 ACTIVE STATUS LIGHTS & SYSTEM DASHBOARD */
+        /* 🟢 SYSTEM DASHBOARD */
         #status-bar { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 3000; pointer-events: none; }
-        .light { width: 10px; height: 10px; border-radius: 50%; background: #333; border: 1px solid #555; transition: 0.2s; }
+        .light { width: 10px; height: 10px; border-radius: 50%; background: #333; border: 1px solid #555; }
         .light.on { background: #00ff64; box-shadow: 0 0 8px #00ff64; }
 
-        .nav { height: 110px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 35px; border-top: 1px solid #444; z-index: 2000; }
-        .btn { width: 18%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 8px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; }
-        .active { border-color: #00ff64; color: #00ff64; box-shadow: 0 0 10px #00ff64; }
+        .nav { height: 80px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 20px; border-top: 1px solid #444; z-index: 2000; }
+        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; }
         
-        .panel { position: absolute; bottom: 145px; width: 90%; left: 5%; background: rgba(20,20,20,0.95); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; backdrop-filter: blur(10px); }
-        
-        /* 🎨 6MM PRECISION SLIDER */
-        .precision-bar { height: 6mm; width: 100%; background: linear-gradient(to right, red, #ff0, lime, cyan, blue, #f0f, red); border-radius: 3mm; margin: 10px 0; border: 1px solid #666; }
-        input[type="range"] { width: 100%; height: 40px; background: none; }
+        /* Glow States */
+        .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
 
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-        .shade-box { height: 30px; border-radius: 4px; border: 1px solid #333; }
+        .panel { position: absolute; bottom: 100px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; }
+        
+        /* 🎨 DYNAMIC SHADE GRID */
+        .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
+        .shade-btn { height: 35px; border-radius: 5px; border: 1px solid #444; }
+
+        .slider-wrap { margin: 15px 0; }
+        input[type="range"] { width: 100%; height: 30px; }
+
+        .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     </style>
 </head>
 <body>
     <div id="status-bar">
-        <div id="l-power" class="light on"></div> <div id="l-sync" class="light"></div> <div id="l-secure" class="light"></div> </div>
+        <div id="l-power" class="light on"></div>
+        <div id="l-sync" class="light"></div>
+        <div id="l-secure" class="light"></div>
+    </div>
 
     <div id="vp">
         <canvas id="baseCvs"></canvas>
         <canvas id="editCvs"></canvas>
-        <div id="grid-overlay" style="position:absolute; width:100%; height:100%; pointer-events:none; opacity:0.1; background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 20px 20px; display:none;"></div>
     </div>
 
-    <div id="mainPanel" class="panel">
-        <div class="grid">
+    <div id="menuPanel" class="panel">
+        <div class="tool-grid">
             <button class="btn" onclick="Engine.io('up')">Upload</button>
             <button class="btn" onclick="Engine.io('dl')">Export</button>
             <button class="btn" onclick="Engine.copy()">Copy 📋</button>
-            <button class="btn" onclick="Engine.toggleGrid()">Grid 🧲</button>
-            <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
-            <button class="btn" onclick="Engine.setMode('draw')">Brush 🖌️</button>
-            <button class="btn" onclick="Engine.setMode('era')">Eraser 🧹</button>
+            <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
+            <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
             <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
         </div>
-        <div class="precision-bar">
-            <input type="range" min="0" max="360" oninput="Engine.updateHue(this.value)">
-        </div>
-        <input type="range" id="bSize" min="2" max="100" value="20" title="Brush Size">
+    </div>
+
+    <div id="brushPanel" class="panel">
+        <div id="shadeContainer" class="shade-grid"></div>
+        <input type="range" min="0" max="360" value="0" oninput="Engine.updateHue(this.value)">
+        <p style="font-size: 10px; margin: 5px 0;">Size</p>
+        <input type="range" id="bSize" min="2" max="100" value="20">
     </div>
 
     <nav class="nav">
-        <button class="btn" onclick="p('main')">Tools</button>
-        <button class="btn" id="editToggle" onclick="Engine.toggleEdit()">Edit Off</button>
-        <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
-        <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
+        <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
+        <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
+        <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
+        <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
     </nav>
 
     <script>
-        // --- 🛠️ THE ENGINE (All 45 Features Integrated) ---
         const Engine = {
             base: document.getElementById('baseCvs'),
             edit: document.getElementById('editCvs'),
+            btx: null, etx: null,
+            mode: 'pan', scale: 1, ox: 0, oy: 0,
+            curHue: 0, curCol: '#ff0000',
             history: [],
-            mode: 'pan',
-            scale: 1, ox: 0, oy: 0,
-            curCol: '#ffffff',
-            
+
             init() {
                 this.btx = this.base.getContext('2d');
                 this.etx = this.edit.getContext('2d');
-                this.loadDefault();
+                this.updateHue(0);
+                this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800');
             },
 
-            // ⏳ Smart Expiry & 📸 Proof of Life
-            save() {
-                if (this.history.length >= 10) this.history.shift();
-                this.history.push({
-                    dat: this.etx.getImageData(0,0,this.edit.width,this.edit.height),
-                    ts: Date.now() // Proof of Life timestamp
-                });
-                this.flash('l-secure');
+            toggleUI(type) {
+                const p = document.getElementById(type + 'Panel');
+                const b = document.getElementById('btn-' + type);
+                const isShowing = p.style.display === 'block';
+                
+                // Close all
+                document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.nav .btn').forEach(el => { if(el.id !== 'btn-edit') el.classList.remove('glow-active')});
+
+                if (!isShowing) {
+                    p.style.display = 'block';
+                    b.classList.add('glow-active');
+                }
             },
 
-            undo() { if(this.history.length) this.etx.putImageData(this.history.pop().dat, 0, 0); },
-
-            // 📋 Secure Copy & Metadata Strip
-            async copy() {
-                const tmp = document.createElement('canvas');
-                tmp.width = this.base.width; tmp.height = this.base.height;
-                const ctx = tmp.getContext('2d');
-                ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
-                // Feature 36: EXIF Stripping happens via blob conversion
-                tmp.toBlob(async b => {
-                    await navigator.clipboard.write([new ClipboardItem({"image/png": b})]);
-                    this.flash('l-sync');
-                });
+            toggleEdit() {
+                const b = document.getElementById('btn-edit');
+                this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
+                b.innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
+                this.mode === 'pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
             },
 
-            // 🎨 UI & Precision
-            updateHue(h) { 
-                this.curCol = `hsl(${h}, 100%, 50%)`; 
-                this.flash('l-power');
-            },
-
-            toggleGrid() {
-                const g = document.getElementById('grid-overlay');
-                g.style.display = g.style.display === 'none' ? 'block' : 'none';
+            updateHue(h) {
+                this.curHue = h;
+                const container = document.getElementById('shadeContainer');
+                container.innerHTML = '';
+                const brushBtn = document.getElementById('btn-brush');
+                
+                for(let i=0; i<10; i++) {
+                    const lum = 10 + (i * 8);
+                    const col = `hsl(${h}, 100%, ${lum}%)`;
+                    const div = document.createElement('div');
+                    div.className = 'shade-btn';
+                    div.style.background = col;
+                    div.onclick = () => {
+                        this.curCol = col;
+                        brushBtn.style.background = col;
+                    };
+                    container.appendChild(div);
+                }
+                this.curCol = `hsl(${h}, 100%, 50%)`;
+                brushBtn.style.background = this.curCol;
             },
 
             rotate() {
-                // Simplified 90deg rotation to keep code tight
                 const t = document.createElement('canvas');
                 t.width = this.base.height; t.height = this.base.width;
                 const tx = t.getContext('2d');
@@ -127,24 +141,17 @@
                 this.resetView();
             },
 
-            // 🟢 Visual Indicators
-            flash(id) {
-                const l = document.getElementById(id);
-                l.classList.add('on');
-                setTimeout(() => l.classList.remove('on'), 500);
-            },
-
-            toggleEdit() {
-                this.mode = this.mode === 'pan' ? 'draw' : 'pan';
-                document.getElementById('editToggle').innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
-                this.edit.style.pointerEvents = this.mode === 'pan' ? 'none' : 'auto';
-            },
-
             resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
             update() { 
                 const s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
                 this.base.style.transform = this.edit.style.transform = s;
             },
+
+            save() {
+                if (this.history.length > 15) this.history.shift();
+                this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
+            },
+            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
 
             io(type) {
                 if(type === 'up') {
@@ -170,48 +177,5 @@
                     this.btx.drawImage(m,0,0); this.resetView();
                 }; m.src = u;
             },
-            loadDefault() { this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800'); },
-            clear() { if(confirm('Burn all edits?')) { this.save(); this.etx.clearRect(0,0,this.edit.width,this.edit.height); }}
-        };
-
-        // UI Panel Toggle
-        function p(id) {
-            const el = document.getElementById(id+'Panel');
-            el.style.display = el.style.display === 'block' ? 'none' : 'block';
-        }
-
-        // --- 🤚 TOUCH HANDLERS (Pan, Zoom, Draw) ---
-        let lastD = 0, sx, sy;
-        window.addEventListener('touchstart', e => {
-            if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
-                else Engine.save();
-            }
-        });
-
-        window.addEventListener('touchmove', e => {
-            if(e.touches.length === 2) {
-                let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                if(lastD > 0) Engine.scale *= (d/lastD);
-                lastD = d; Engine.update();
-            } else if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); }
-                else {
-                    const r = Engine.edit.getBoundingClientRect();
-                    const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width);
-                    const y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-                    Engine.etx.globalCompositeOperation = Engine.mode === 'era' ? 'destination-out' : 'source-over';
-                    Engine.etx.fillStyle = Engine.curCol;
-                    Engine.etx.beginPath();
-                    Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2);
-                    Engine.etx.fill();
-                }
-            }
-        }, {passive: false});
-
-        window.addEventListener('touchend', () => lastD = 0);
+            clear() { if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,
         
-        Engine.init();
-    </script>
-</body>
-</html>
