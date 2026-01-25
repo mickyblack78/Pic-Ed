@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V2.5</title>
+    <title>Pic Ed Stability - V3.0</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
@@ -19,8 +19,13 @@
         .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
         .shade-btn { height: 35px; border-radius: 5px; border: 1px solid #444; }
 
-        .precision-bar { height: 6mm; width: 100%; background: linear-gradient(to right, #000, #fff, red, #ff0, lime, cyan, blue, #f0f, #fff, #000); border-radius: 3mm; margin: 10px 0; border: 1px solid #666; position: relative; }
-        .precision-bar input[type="range"] { width: 100%; height: 100%; opacity: 0; position: absolute; top: 0; left: 0; cursor: pointer; }
+        .slider-wrap { margin-bottom: 10px; }
+        .slider-label { font-size: 10px; color: #aaa; margin-bottom: 5px; display: block; }
+
+        .precision-bar { height: 6mm; width: 100%; background: linear-gradient(to right, #000, #fff, red, #ff0, lime, cyan, blue, #f0f, #fff, #000); border-radius: 3mm; position: relative; border: 1px solid #666; }
+        .precision-bar input[type="range"] { width: 100%; height: 100%; opacity: 0; position: absolute; cursor: pointer; }
+
+        input[type="range"].std-slider { width: 100%; height: 30px; }
 
         .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     </style>
@@ -35,11 +40,19 @@
         <div class="tool-grid">
             <button class="btn" onclick="Engine.io('up')">Upload</button>
             <button class="btn" onclick="Engine.io('dl')">Export</button>
+            <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
+        </div>
+    </div>
+
+    <div id="toolsPanel" class="panel">
+        <div class="tool-grid">
+            <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
             <button class="btn" id="btn-copy" onclick="Engine.setSelectionMode('copy')">Copy ✂️</button>
             <button class="btn" id="btn-cut" onclick="Engine.setSelectionMode('cut')">Cut 📋</button>
             <button class="btn" onclick="Engine.sticker()">Sticker 🏷️</button>
             <button class="btn" onclick="Engine.paste()">Paste 📥</button>
-            <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
+            <button class="btn" id="btn-pick" onclick="Engine.setMode('pick')">Picker 🎨</button>
+            <button class="btn" id="btn-edge" onclick="Engine.toggleEdgeLock()">Edge Lock</button>
             <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
             <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
         </div>
@@ -47,73 +60,70 @@
 
     <div id="brushPanel" class="panel">
         <div id="shadeContainer" class="shade-grid"></div>
-        <div class="precision-bar">
-            <input type="range" min="0" max="100" value="50" oninput="Engine.updatePrecisionColor(this.value)">
+        <div class="slider-wrap">
+            <span class="slider-label">COLOR</span>
+            <div class="precision-bar"><input type="range" min="0" max="100" value="50" oninput="Engine.updateColor(this.value)"></div>
         </div>
-        <input type="range" id="bSize" min="2" max="100" value="20">
+        <div class="slider-wrap">
+            <span class="slider-label">SIZE</span>
+            <input type="range" id="bSize" class="std-slider" min="2" max="100" value="20">
+        </div>
+        <div class="slider-wrap">
+            <span class="slider-label">TRANSPARENCY</span>
+            <input type="range" id="bAlpha" class="std-slider" min="0" max="100" value="100">
+        </div>
     </div>
 
     <nav class="nav">
         <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
+        <button id="btn-tools" class="btn" onclick="Engine.toggleUI('tools')">Tools</button>
         <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
         <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
     </nav>
 
     <script>
         const Engine = {
-            base: document.getElementById('baseCvs'),
-            edit: document.getElementById('editCvs'),
-            btx: null, etx: null,
-            mode: 'pan', scale: 1, ox: 0, oy: 0,
-            curCol: '#ffffff', history: [],
-            selectionPath: [], clipboard: null, selectionMode: null,
+            base: document.getElementById('baseCvs'), edit: document.getElementById('editCvs'),
+            btx: null, etx: null, mode: 'pan', scale: 1, ox: 0, oy: 0,
+            curCol: 'hsl(0, 100%, 50%)', history: [], clipboard: null, 
+            selectionPath: [], selectionMode: null, edgeLock: false,
 
             init() {
-                this.btx = this.base.getContext('2d');
-                this.etx = this.edit.getContext('2d');
-                this.updatePrecisionColor(50);
+                this.btx = this.base.getContext('2d', {willReadFrequently: true});
+                this.etx = this.edit.getContext('2d', {willReadFrequently: true});
+                this.updateColor(50);
                 this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c33?w=800');
             },
 
             toggleUI(type) {
                 const p = document.getElementById(type + 'Panel');
-                const btn = document.getElementById('btn-' + type);
                 const isOpen = p.style.display === 'block';
                 document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
-                document.getElementById('btn-menu').classList.remove('glow-active');
-                document.getElementById('btn-brush').classList.remove('glow-active');
-                if (!isOpen) { p.style.display = 'block'; btn.classList.add('glow-active'); }
+                document.querySelectorAll('.nav .btn').forEach(b => { if(b.id !== 'btn-edit') b.classList.remove('glow-active')});
+                if (!isOpen) { p.style.display = 'block'; document.getElementById('btn-' + type).classList.add('glow-active'); }
             },
 
             toggleEdit() {
-                const b = document.getElementById('btn-edit');
                 this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
-                this.selectionMode = null;
+                const b = document.getElementById('btn-edit');
                 b.innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
                 this.mode === 'pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
             },
 
-            setSelectionMode(m) {
-                this.mode = 'select';
-                this.selectionMode = m;
-                document.getElementById('btn-copy').classList.remove('glow-active');
-                document.getElementById('btn-cut').classList.remove('glow-active');
-                document.getElementById('btn-' + m).classList.add('glow-active');
-            },
+            setMode(m) { this.mode = m; document.querySelectorAll('.tool-grid .btn').forEach(b => b.classList.remove('glow-active')); if(m==='pick') document.getElementById('btn-pick').classList.add('glow-active'); },
+            setSelectionMode(m) { this.mode = 'select'; this.selectionMode = m; document.getElementById('btn-'+m).classList.add('glow-active'); },
+            toggleEdgeLock() { this.edgeLock = !this.edgeLock; document.getElementById('btn-edge').classList.toggle('glow-active', this.edgeLock); },
 
-            updatePrecisionColor(v) {
-                let col;
-                if (v < 5) col = '#000000';
-                else if (v > 95) col = '#ffffff';
-                else col = `hsl(${((v-5)/90)*360}, 100%, 50%)`;
-                
-                this.curCol = col;
-                document.getElementById('btn-brush').style.background = col;
+            updateColor(v) {
+                let h = v < 5 ? 0 : v > 95 ? 0 : ((v-5)/90)*360;
+                let s = v < 5 || v > 95 ? 0 : 100;
+                let l = v < 5 ? 0 : v > 95 ? 100 : 50;
+                this.curCol = `hsl(${h}, ${s}%, ${l}%)`;
+                document.getElementById('btn-brush').style.background = this.curCol;
                 const container = document.getElementById('shadeContainer');
                 container.innerHTML = '';
                 for(let i=0; i<10; i++) {
-                    const l = (i * 11);
-                    const shade = `hsl(${v<5||v>95?0:((v-5)/90)*360}, ${v<5||v>95?0:100}%, ${l}%)`;
+                    const shade = `hsl(${h}, ${s}%, ${i * 11}%)`;
                     const div = document.createElement('div');
                     div.className = 'shade-btn'; div.style.background = shade;
                     div.onclick = () => { this.curCol = shade; document.getElementById('btn-brush').style.background = shade; };
@@ -123,102 +133,39 @@
 
             processSelection() {
                 if (this.selectionPath.length < 3) return;
-                const minX = Math.min(...this.selectionPath.map(p => p.x));
-                const minY = Math.min(...this.selectionPath.map(p => p.y));
-                const maxX = Math.max(...this.selectionPath.map(p => p.x));
-                const maxY = Math.max(...this.selectionPath.map(p => p.y));
-                const w = maxX - minX; const h = maxY - minY;
-
-                const canvas = document.createElement('canvas');
-                canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.translate(-minX, -minY);
-                ctx.beginPath();
-                this.selectionPath.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-                ctx.closePath();
-                ctx.clip();
-                ctx.drawImage(this.base, 0, 0);
-                ctx.drawImage(this.edit, 0, 0);
-                
-                this.clipboard = canvas;
-                if (this.selectionMode === 'cut') {
-                    this.save();
-                    this.btx.save();
-                    this.btx.beginPath();
-                    this.selectionPath.forEach((p, i) => i === 0 ? this.btx.moveTo(p.x, p.y) : this.btx.lineTo(p.x, p.y));
-                    this.btx.closePath();
-                    this.btx.clip();
-                    this.btx.clearRect(0,0,this.base.width,this.base.height);
-                    this.btx.restore();
-                }
-                this.selectionMode = null; this.mode = 'pan';
-                document.querySelectorAll('#btn-copy, #btn-cut').forEach(b => b.classList.remove('glow-active'));
+                const xs = this.selectionPath.map(p => p.x), ys = this.selectionPath.map(p => p.y);
+                const minX = Math.min(...xs), minY = Math.min(...ys), w = Math.max(...xs)-minX, h = Math.max(...ys)-minY;
+                const c = document.createElement('canvas'); c.width = w; c.height = h;
+                const ctx = c.getContext('2d'); ctx.translate(-minX, -minY);
+                ctx.beginPath(); this.selectionPath.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath(); ctx.clip(); ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
+                this.clipboard = c;
+                if (this.selectionMode === 'cut') { this.save(); this.btx.save(); this.btx.beginPath(); this.selectionPath.forEach((p, i) => i === 0 ? this.btx.moveTo(p.x, p.y) : this.btx.lineTo(p.x, p.y)); this.btx.closePath(); this.btx.clip(); this.btx.clearRect(0,0,this.base.width,this.base.height); this.btx.restore(); }
+                this.mode = 'pan'; this.selectionPath = []; document.querySelectorAll('#btn-copy, #btn-cut').forEach(b => b.classList.remove('glow-active'));
             },
 
-            paste() {
-                if (!this.clipboard) return;
-                this.save();
-                this.etx.drawImage(this.clipboard, (this.base.width/2)-(this.clipboard.width/2), (this.base.height/2)-(this.clipboard.height/2));
-            },
-
+            paste() { if(!this.clipboard) return; this.save(); this.etx.drawImage(this.clipboard, (this.base.width/2)-(this.clipboard.width/2), (this.base.height/2)-(this.clipboard.height/2)); },
             sticker() {
-                if (!this.clipboard) return;
-                this.save();
-                // Fit to current view logic
-                const viewW = (window.innerWidth * 0.8) / this.scale;
-                const ratio = viewW / this.clipboard.width;
-                const finalW = this.clipboard.width * ratio;
-                const finalH = this.clipboard.height * ratio;
-                const centerX = (-this.ox + window.innerWidth/2) / this.scale;
-                const centerY = (-this.oy + (window.innerHeight-90)/2) / this.scale;
-                this.etx.drawImage(this.clipboard, centerX - finalW/2, centerY - finalH/2, finalW, finalH);
+                if(!this.clipboard) return; this.save();
+                const vW = (window.innerWidth*0.8)/this.scale, ratio = vW/this.clipboard.width, fW = this.clipboard.width*ratio, fH = this.clipboard.height*ratio;
+                const cX = (-this.ox + window.innerWidth/2)/this.scale, cY = (-this.oy + (window.innerHeight-90)/2)/this.scale;
+                this.etx.drawImage(this.clipboard, cX-fW/2, cY-fH/2, fW, fH);
             },
 
             rotate() {
-                const t = document.createElement('canvas');
-                t.width = this.base.height; t.height = this.base.width;
-                const tx = t.getContext('2d');
-                tx.translate(t.width/2, t.height/2); tx.rotate(Math.PI/2);
+                const t = document.createElement('canvas'); t.width = this.base.height; t.height = this.base.width;
+                const tx = t.getContext('2d'); tx.translate(t.width/2, t.height/2); tx.rotate(Math.PI/2);
                 tx.drawImage(this.base, -this.base.width/2, -this.base.height/2);
-                this.base.width = this.edit.width = t.width;
-                this.base.height = this.edit.height = t.height;
-                this.btx.drawImage(t, 0, 0);
-                this.resetView();
+                this.base.width = this.edit.width = t.width; this.base.height = this.edit.height = t.height;
+                this.btx.drawImage(t, 0, 0); this.resetView();
             },
 
             resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
             update() { this.base.style.transform = this.edit.style.transform = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`; },
-
-            save() {
-                if (this.history.length >= 10) this.history.shift();
-                this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
-            },
+            save() { if(this.history.length >= 10) this.history.shift(); this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height)); },
             undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
-
-            io(type) {
-                if(type === 'up') {
-                    const i = document.createElement('input'); i.type='file';
-                    i.onchange = e => {
-                        const r = new FileReader();
-                        r.onload = v => this.loadImg(v.target.result);
-                        r.readAsDataURL(e.target.files[0]);
-                    }; i.click();
-                } else {
-                    const a = document.createElement('a'); a.download = 'export.png';
-                    const t = document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height;
-                    const ctx = t.getContext('2d'); ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
-                    a.href = t.toDataURL(); a.click();
-                }
-            },
-
-            loadImg(u) {
-                const m = new Image(); m.crossOrigin = "anonymous";
-                m.onload = () => {
-                    this.base.width = this.edit.width = m.width;
-                    this.base.height = this.edit.height = m.height;
-                    this.btx.drawImage(m,0,0); this.resetView();
-                }; m.src = u;
-            },
+            io(type) { if(type === 'up') { const i = document.createElement('input'); i.type='file'; i.onchange = e => { const r = new FileReader(); r.onload = v => this.loadImg(v.target.result); r.readAsDataURL(e.target.files[0]); }; i.click(); } else { const a = document.createElement('a'); a.download = 'export.png'; const t = document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height; t.getContext('2d').drawImage(this.base,0,0); t.getContext('2d').drawImage(this.edit,0,0); a.href = t.toDataURL(); a.click(); } },
+            loadImg(u) { const m = new Image(); m.crossOrigin="anonymous"; m.onload=()=>{this.base.width=this.edit.width=m.width; this.base.height=this.edit.height=m.height; this.btx.drawImage(m,0,0); this.resetView();}; m.src=u; },
             clear() { if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,this.edit.height); }
         };
 
@@ -227,25 +174,25 @@
             if (e.target.closest('.panel') || e.target.closest('.nav')) return;
             if(e.touches.length === 1) {
                 if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
-                else if(Engine.mode === 'select') { Engine.selectionPath = []; }
-                else Engine.save();
+                else if(Engine.mode === 'select') Engine.selectionPath = [];
+                else if(Engine.mode === 'draw') Engine.save();
             }
         });
         window.addEventListener('touchmove', e => {
             if (e.target.closest('.panel') || e.target.closest('.nav')) return;
+            const r = Engine.edit.getBoundingClientRect();
+            const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width), y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
             if(e.touches.length === 2) {
                 let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 if(lastD > 0) Engine.scale *= (d/lastD);
                 lastD = d; Engine.update();
             } else if(e.touches.length === 1) {
-                const r = Engine.edit.getBoundingClientRect();
-                const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width);
-                const y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
                 if (Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); }
-                else if (Engine.mode === 'select') { Engine.selectionPath.push({x, y}); }
-                else {
-                    Engine.etx.fillStyle = Engine.curCol;
-                    Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
+                else if (Engine.mode === 'select') Engine.selectionPath.push({x, y});
+                else if (Engine.mode === 'pick') { const p = Engine.btx.getImageData(x,y,1,1).data; Engine.curCol = `rgb(${p[0]},${p[1]},${p[2]})`; document.getElementById('btn-brush').style.background = Engine.curCol; }
+                else if (Engine.mode === 'draw') {
+                    Engine.etx.globalAlpha = document.getElementById('bAlpha').value / 100;
+                    Engine.etx.fillStyle = Engine.curCol; Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
                 }
             }
         }, {passive: false});
