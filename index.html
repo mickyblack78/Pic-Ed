@@ -1,222 +1,154 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pro Drawing App</title>
     <style>
-        body { margin: 0; background: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
-        #bottom-nav { position: fixed; bottom: 0; width: 100%; height: 75px; background: #222; display: flex; justify-content: space-around; align-items: center; z-index: 300; border-top: 1px solid #444; padding-bottom: env(safe-area-inset-bottom); }
-        .nav-btn { background: #333; border: 1px solid #555; color: white; padding: 12px; border-radius: 8px; cursor: pointer; min-width: 70px; text-align: center; font-weight: bold; font-size: 13px; transition: 0.2s; }
-        .glow-active { box-shadow: 0 0 15px #00ff00 !important; border-color: #00ff00 !important; color: #00ff00; }
-        #canvas-container { position: absolute; top: 0; bottom: 80px; width: 100%; display: flex; justify-content: center; align-items: center; background: #111; }
-        canvas { background: white; touch-action: none; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
-        .panel { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: rgba(34, 34, 34, 0.98); padding: 15px; border-radius: 12px; display: none; z-index: 200; width: 92%; max-width: 450px; border: 1px solid #444; }
-        #thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, 2cm); gap: 10px; margin-top: 15px; max-height: 250px; overflow-y: auto; padding: 5px; }
-        .thumb-container { width: 2cm; height: 2cm; border: 1px solid #555; position: relative; background: #fff; }
-        .thumb-img { width: 100%; height: 100%; object-fit: contain; }
-        .del-btn { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 14px; line-height: 18px; text-align: center; }
-        #shade-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
-        .shade-box { height: 35px; border: 1px solid #555; border-radius: 4px; cursor: pointer; }
-        #rainbow-bar { width: 100%; height: 30px; background: linear-gradient(to right, #000, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #fff); border-radius: 5px; cursor: crosshair; }
-        #current-paint-box { width: 100%; height: 30px; border: 2px solid #fff; border-radius: 4px; margin-top: 10px; background: #000; }
-        .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        body { margin: 0; overflow: hidden; background: #222; font-family: sans-serif; }
+        canvas { display: block; background: white; cursor: crosshair; }
+        .panel { position: fixed; background: rgba(50,50,50,0.9); color: white; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; }
+        #paintPanel { top: 10px; left: 10px; width: 150px; }
+        #menuPanel { top: 10px; right: 10px; width: 200px; }
+        #actionPanel { bottom: 10px; left: 50%; transform: translateX(-50%); flex-direction: row; }
+        .box { width: 30px; height: 30px; border: 1px solid #000; cursor: pointer; }
+        .active { outline: 3px solid #0ff; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .thumb { width: 2cm; height: 2cm; background: #eee; position: relative; border: 1px solid #444; }
+        .del { position: absolute; top: 0; right: 0; background: red; color: white; font-size: 10px; cursor: pointer; border: none; }
+        label { font-size: 12px; }
+        input[type="range"] { width: 100%; }
     </style>
 </head>
 <body>
 
-<div id="canvas-container"><canvas id="mainCanvas"></canvas></div>
+<canvas id="c"></canvas>
 
-<div id="menu-panel" class="panel">
-    <button class="nav-btn" style="width:100%; margin-bottom:10px;" onclick="saveToDB()">Save Drawing</button>
-    <div id="thumb-grid"></div>
+<div id="paintPanel" class="panel">
+    <div id="paintBox" class="box" style="background: #000; width: 100%;"></div>
+    <label>Color</label>
+    <input type="range" id="rainbow" min="0" max="360" oninput="updateHue(this.value)">
+    <div id="shades" class="grid"></div>
+    <label>Brush Size</label>
+    <input type="range" id="size" min="1" max="100" value="5" oninput="brushSize = this.value">
+    <label>Transparency</label>
+    <input type="range" id="alpha" min="0" max="100" value="100" oninput="brushOpacity = this.value/100">
 </div>
 
-<div id="tool-panel" class="panel">
-    <div class="tool-grid">
-        <button class="nav-btn" id="m-draw" onclick="setMode('draw', 'm-draw')">Draw</button>
-        <button class="nav-btn" id="m-erase" onclick="setMode('erase', 'm-erase')">Erase</button>
-        <button class="nav-btn" id="m-select" onclick="setMode('select', 'm-select')">Select</button>
-        <button class="nav-btn" onclick="undo()">Undo</button>
-        <button class="nav-btn" onclick="copySelection()">Copy</button>
-        <button class="nav-btn" onclick="cutSelection()">Cut</button>
-        <button class="nav-btn" onclick="pasteSelection()">Paste</button>
-        <button class="nav-btn" onclick="clearCanvas()" style="color:#ff4444">Clear</button>
-    </div>
+<div id="menuPanel" class="panel">
+    <button onclick="saveDrawing()">Save Drawing</button>
+    <button onclick="document.getElementById('imp').click()">Import</button>
+    <input type="file" id="imp" hidden onchange="doImport(event)">
+    <button onclick="doExport()">Export</button>
+    <div id="thumbGrid" class="grid" style="grid-template-columns: 1fr 1fr;"></div>
 </div>
 
-<div id="paint-panel" class="panel">
-    <div id="shade-container"></div>
-    <div id="rainbow-bar" onpointerdown="pickBaseColor(event)"></div>
-    <div id="current-paint-box"></div>
-</div>
-
-<div id="bottom-nav">
-    <div id="btn-menu" class="nav-btn" onclick="toggleUI('menu-panel', 'btn-menu')">Menu</div>
-    <div id="btn-tools" class="nav-btn" onclick="toggleUI('tool-panel', 'btn-tools')">Action</div>
-    <div id="btn-brush" class="nav-btn" onclick="toggleUI('paint-panel', 'btn-brush')">Paint</div>
-    <div id="btn-edit-toggle" class="nav-btn" onclick="toggleEdit()">Edit</div>
+<div id="actionPanel" class="panel">
+    <button id="drawBtn" onclick="toggleTool('draw')">Draw</button>
+    <button id="pickBtn" onclick="toggleTool('pick')">Picker</button>
 </div>
 
 <script>
-    const cvs = document.getElementById('mainCanvas'), ctx = cvs.getContext('2d');
-    let drawing = false, currentMode = 'draw', isEditMode = false;
-    let brushColor = '#000000', history = [], db, startX, startY, selectionData = null, stickerImg = null;
-    const rainbow = ['#000000', '#ff0000', '#ffff00', '#00ff00', '#00ffff', '#0000ff', '#ff00ff', '#ffffff'];
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 5000; canvas.height = 5000;
 
-    const request = indexedDB.open("DrawingAppDB", 3);
-    request.onupgradeneeded = e => {
-        db = e.target.result;
-        if(!db.objectStoreNames.contains("saves")) db.createObjectStore("saves", { keyPath: "id", autoIncrement: true });
-    };
-    request.onsuccess = e => { db = e.target.result; refreshGallery(); };
+    let drawing = false, currentTool = null, brushSize = 5, brushOpacity = 1, activeColor = '#000000';
 
-    function initCanvas() {
-        const container = document.getElementById('canvas-container');
-        cvs.width = container.clientWidth * 0.95;
-        cvs.height = container.clientHeight * 0.95;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, cvs.width, cvs.height);
-        saveState();
-    }
-
-    function toggleEdit() {
-        isEditMode = !isEditMode;
-        document.getElementById('btn-edit-toggle').classList.toggle('glow-active', isEditMode);
-    }
-
-    function toggleUI(id, bid) {
-        const p = document.getElementById(id);
-        const isOpen = p.style.display === 'block';
-        document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
-        document.querySelectorAll('.nav-btn').forEach(x => { if(x.id !== 'btn-edit-toggle') x.classList.remove('glow-active'); });
-        if(!isOpen) { p.style.display = 'block'; document.getElementById(bid).classList.add('glow-active'); }
-        if(isEditMode) document.getElementById('btn-edit-toggle').classList.add('glow-active');
-    }
-
-    function pickBaseColor(e) {
-        const rect = e.target.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const percent = Math.max(0, Math.min(1, x / rect.width));
-        const idx = Math.floor(percent * (rainbow.length - 1));
-        const nextIdx = Math.min(idx + 1, rainbow.length - 1);
-        const ratio = (percent * (rainbow.length - 1)) - idx;
-        const baseColor = lerpColor(rainbow[idx], rainbow[nextIdx], ratio);
-        updateShades(baseColor);
-    }
-
-    function updateShades(color) {
-        const container = document.getElementById('shade-container');
-        container.innerHTML = '';
-        for(let i=0; i<10; i++) {
-            const shade = adjustBrightness(color, (i - 5) * 25);
-            const div = document.createElement('div');
-            div.className = 'shade-box';
-            div.style.backgroundColor = shade;
-            div.onclick = () => { 
-                brushColor = shade; 
-                document.getElementById('current-paint-box').style.backgroundColor = shade;
-            };
-            container.appendChild(div);
-        }
-    }
-
-    function lerpColor(a, b, amount) {
-        const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16),
-              ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff,
-              br = bh >> 16, bg = (bh >> 8) & 0xff, bb = bh & 0xff,
-              rr = Math.round(ar + amount * (br - ar)), rg = Math.round(ag + amount * (bg - ag)), rb = Math.round(ab + amount * (bb - ab));
-        return '#' + ((1 << 24) + (rr << 16) + (rg << 8) + (rb | 0)).toString(16).slice(1);
-    }
-
-    function adjustBrightness(col, amt) {
-        let usePound = col[0] == "#"; col = usePound ? col.slice(1) : col;
-        let num = parseInt(col,16), r = (num >> 16) + amt, g = (num >> 8 & 0x00FF) + amt, b = (num & 0x0000FF) + amt;
-        r = Math.max(Math.min(255, r), 0); g = Math.max(Math.min(255, g), 0); b = Math.max(Math.min(255, b), 0);
-        return (usePound?"#":"") + (b | (g << 8) | (r << 16)).toString(16).padStart(6, '0');
-    }
-
-    function saveToDB() {
-        const tx = db.transaction("saves", "readwrite");
-        tx.objectStore("saves").add({ data: cvs.toDataURL(), date: Date.now() });
-        tx.oncomplete = refreshGallery;
-    }
-
-    function refreshGallery() {
-        const grid = document.getElementById('thumb-grid');
-        grid.innerHTML = '';
-        db.transaction("saves").objectStore("saves").getAll().onsuccess = e => {
-            e.target.result.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'thumb-container';
-                div.innerHTML = `<img src="${item.data}" class="thumb-img" onclick="loadImg('${item.data}')">
-                                 <button class="del-btn" onclick="deleteImg(${item.id})">×</button>`;
-                grid.appendChild(div);
-            });
-        };
-    }
-
-    function loadImg(data) { const img = new Image(); img.onload = () => { ctx.clearRect(0,0,cvs.width,cvs.height); ctx.drawImage(img,0,0); saveState(); }; img.src = data; }
-    function deleteImg(id) { db.transaction("saves", "readwrite").objectStore("saves").delete(id).onsuccess = refreshGallery; }
-    function saveState() { history.push(cvs.toDataURL()); if(history.length > 25) history.shift(); }
-    function undo() { if(history.length < 2) return; history.pop(); loadImg(history[history.length-1]); }
-    function setMode(m, id) { currentMode = m; document.querySelectorAll('#tool-panel .nav-btn').forEach(b => b.classList.remove('glow-active')); document.getElementById(id).classList.add('glow-active'); }
-    function clearCanvas() { ctx.fillStyle = 'white'; ctx.fillRect(0,0,cvs.width,cvs.height); saveState(); }
-
-    function getXY(e) {
-        const r = cvs.getBoundingClientRect();
-        const t = (e.touches && e.touches[0]) || e;
-        return { x: t.clientX - r.left, y: t.clientY - r.top };
-    }
-
-    function copySelection() {
-        if (selectionData) {
-            const tempCvs = document.createElement('canvas');
-            tempCvs.width = Math.abs(selectionData.w); tempCvs.height = Math.abs(selectionData.h);
-            const x = selectionData.w < 0 ? selectionData.x + selectionData.w : selectionData.x;
-            const y = selectionData.h < 0 ? selectionData.y + selectionData.h : selectionData.y;
-            tempCvs.getContext('2d').putImageData(ctx.getImageData(x, y, tempCvs.width, tempCvs.height), 0, 0);
-            stickerImg = tempCvs.toDataURL();
-        }
-    }
-
-    function cutSelection() { copySelection(); if(selectionData) { ctx.fillStyle = 'white'; ctx.fillRect(selectionData.x, selectionData.y, selectionData.w, selectionData.h); saveState(); } }
-    function pasteSelection() { if(stickerImg) { const img = new Image(); img.onload = () => { ctx.drawImage(img, 20, 20); saveState(); }; img.src = stickerImg; } }
-
-    cvs.addEventListener('pointerdown', e => { 
-        if(!isEditMode) return; 
-        drawing = true; const p = getXY(e); startX = p.x; startY = p.y;
-        if(currentMode !== 'select') { ctx.beginPath(); ctx.moveTo(p.x, p.y); }
-    });
-
-    cvs.addEventListener('pointermove', e => {
-        if(!drawing || !isEditMode) return;
-        const p = getXY(e);
-        if(currentMode === 'select') {
-            const img = new Image();
-            img.onload = () => {
-                ctx.clearRect(0,0,cvs.width,cvs.height);
-                ctx.drawImage(img,0,0);
-                ctx.strokeStyle = '#00ff00';
-                ctx.setLineDash([5, 5]);
-                ctx.strokeRect(startX, startY, p.x - startX, p.y - startY);
-                ctx.setLineDash([]);
-            };
-            img.src = history[history.length-1];
+    // Toggle logic
+    function toggleTool(tool) {
+        const btn = document.getElementById(tool + 'Btn');
+        if (currentTool === tool) {
+            currentTool = null;
+            btn.classList.remove('active');
         } else {
-            ctx.strokeStyle = currentMode === 'erase' ? 'white' : brushColor;
-            ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.lineTo(p.x, p.y); ctx.stroke();
+            document.querySelectorAll('.panel button').forEach(b => b.classList.remove('active'));
+            currentTool = tool;
+            btn.classList.add('active');
         }
-    });
+    }
 
-    window.addEventListener('pointerup', e => { 
-        if(drawing) { 
-            if(currentMode === 'select') { const p = getXY(e); selectionData = { x: startX, y: startY, w: p.x - startX, h: p.y - startY }; }
-            drawing = false; saveState(); 
-        } 
-    });
+    canvas.onmousedown = (e) => {
+        if (currentTool === 'pick') {
+            const data = ctx.getImageData(e.pageX + window.scrollX, e.pageY + window.scrollY, 1, 1).data;
+            const hex = "#" + ((1 << 24) + (data[0] << 16) + (data[1] << 8) + data[2]).toString(16).slice(1);
+            updateColor(hex);
+            return;
+        }
+        drawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.pageX + window.scrollX, e.pageY + window.scrollY);
+    };
 
-    window.onload = () => { initCanvas(); updateShades('#000000'); };
+    canvas.onmousemove = (e) => {
+        if (!drawing || currentTool !== 'draw') return;
+        ctx.lineWidth = brushSize;
+        ctx.globalAlpha = brushOpacity;
+        ctx.strokeStyle = activeColor;
+        ctx.lineCap = 'round';
+        ctx.lineTo(e.pageX + window.scrollX, e.pageY + window.scrollY);
+        ctx.stroke();
+    };
+
+    canvas.onmouseup = () => { drawing = false; ctx.closePath(); };
+
+    function updateColor(hex) {
+        activeColor = hex;
+        document.getElementById('paintBox').style.backgroundColor = hex;
+    }
+
+    function updateHue(h) {
+        const color = `hsl(${h}, 100%, 50%)`;
+        updateColor(color);
+        const shades = document.getElementById('shades');
+        shades.innerHTML = '';
+        for(let i=1; i<=10; i++) {
+            const s = document.createElement('div');
+            s.className = 'box';
+            s.style.background = `hsl(${h}, 100%, ${i*10}%)`;
+            s.onclick = () => updateColor(s.style.background);
+            shades.appendChild(s);
+        }
+    }
+
+    function doImport(e) {
+        const r = new FileReader();
+        r.onload = (ev) => {
+            const i = new Image();
+            i.onload = () => {
+                const s = (window.innerWidth * 0.8) / i.width;
+                const w = i.width * s, h = i.height * s;
+                const x = window.scrollX + (window.innerWidth - w) / 2;
+                const y = window.scrollY + (window.innerHeight - h) / 2;
+                ctx.globalAlpha = 1;
+                ctx.drawImage(i, x, y, w, h);
+                ctx.globalAlpha = brushOpacity;
+            };
+            i.src = ev.target.result;
+        };
+        r.readAsDataURL(e.target.files[0]);
+    }
+
+    function doExport() {
+        const l = document.createElement('a');
+        l.download = 'art.png';
+        l.href = canvas.toDataURL();
+        l.click();
+    }
+
+    function saveDrawing() {
+        const grid = document.getElementById('thumbGrid');
+        const t = document.createElement('div');
+        t.className = 'thumb';
+        const img = new Image();
+        img.src = canvas.toDataURL();
+        img.style.width = "100%";
+        t.appendChild(img);
+        const d = document.createElement('button');
+        d.className = 'del'; d.innerText = 'X';
+        d.onclick = () => t.remove();
+        t.appendChild(d);
+        grid.appendChild(t);
+    }
+    
+    updateHue(0);
 </script>
 </body>
 </html>
