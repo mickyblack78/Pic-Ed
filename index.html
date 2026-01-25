@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V2.1</title>
+    <title>Pic Ed Stability - V2.5</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; cursor: crosshair; }
+        #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
         canvas { position: absolute; touch-action: none; image-rendering: pixelated; }
         
-        .nav { height: 80px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 20px; border-top: 1px solid #444; z-index: 2000; }
-        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; }
+        .nav { height: 90px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 25px; border-top: 1px solid #444; z-index: 3000; }
+        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; cursor: pointer; }
         
-        /* Glow States */
         .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
 
-        .panel { position: absolute; bottom: 100px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; }
+        .panel { position: absolute; bottom: 110px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; box-sizing: border-box; }
         
-        /* 🎨 DYNAMIC SHADE GRID */
-        .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
+        .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
         .shade-btn { height: 35px; border-radius: 5px; border: 1px solid #444; }
 
-        input[type="range"] { width: 100%; height: 30px; }
+        .precision-bar { height: 6mm; width: 100%; background: linear-gradient(to right, #000, #fff, red, #ff0, lime, cyan, blue, #f0f, #fff, #000); border-radius: 3mm; margin: 10px 0; border: 1px solid #666; position: relative; }
+        .precision-bar input[type="range"] { width: 100%; height: 100%; opacity: 0; position: absolute; top: 0; left: 0; cursor: pointer; }
 
         .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     </style>
@@ -36,17 +35,21 @@
         <div class="tool-grid">
             <button class="btn" onclick="Engine.io('up')">Upload</button>
             <button class="btn" onclick="Engine.io('dl')">Export</button>
-            <button class="btn" onclick="Engine.copy()">Copy 📋</button>
+            <button class="btn" id="btn-copy" onclick="Engine.setSelectionMode('copy')">Copy ✂️</button>
+            <button class="btn" id="btn-cut" onclick="Engine.setSelectionMode('cut')">Cut 📋</button>
+            <button class="btn" onclick="Engine.sticker()">Sticker 🏷️</button>
+            <button class="btn" onclick="Engine.paste()">Paste 📥</button>
+            <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
             <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
-            <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
             <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
         </div>
     </div>
 
     <div id="brushPanel" class="panel">
         <div id="shadeContainer" class="shade-grid"></div>
-        <input type="range" min="0" max="360" value="0" oninput="Engine.updateHue(this.value)">
-        <p style="font-size: 10px; margin: 5px 0;">Size</p>
+        <div class="precision-bar">
+            <input type="range" min="0" max="100" value="50" oninput="Engine.updatePrecisionColor(this.value)">
+        </div>
         <input type="range" id="bSize" min="2" max="100" value="20">
     </div>
 
@@ -54,7 +57,6 @@
         <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
         <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
         <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
-        <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
     </nav>
 
     <script>
@@ -63,58 +65,113 @@
             edit: document.getElementById('editCvs'),
             btx: null, etx: null,
             mode: 'pan', scale: 1, ox: 0, oy: 0,
-            curHue: 0, curCol: '#ff0000',
-            history: [],
+            curCol: '#ffffff', history: [],
+            selectionPath: [], clipboard: null, selectionMode: null,
 
             init() {
                 this.btx = this.base.getContext('2d');
                 this.etx = this.edit.getContext('2d');
-                this.updateHue(0);
-                this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800');
+                this.updatePrecisionColor(50);
+                this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c33?w=800');
             },
 
             toggleUI(type) {
                 const p = document.getElementById(type + 'Panel');
-                const b = document.getElementById('btn-' + type);
-                const isShowing = p.style.display === 'block';
-                
+                const btn = document.getElementById('btn-' + type);
+                const isOpen = p.style.display === 'block';
                 document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
-                document.querySelectorAll('.nav .btn').forEach(el => { if(el.id !== 'btn-edit') el.classList.remove('glow-active')});
-
-                if (!isShowing) {
-                    p.style.display = 'block';
-                    b.classList.add('glow-active');
-                }
+                document.getElementById('btn-menu').classList.remove('glow-active');
+                document.getElementById('btn-brush').classList.remove('glow-active');
+                if (!isOpen) { p.style.display = 'block'; btn.classList.add('glow-active'); }
             },
 
             toggleEdit() {
                 const b = document.getElementById('btn-edit');
                 this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
+                this.selectionMode = null;
                 b.innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
                 this.mode === 'pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
             },
 
-            updateHue(h) {
-                this.curHue = h;
+            setSelectionMode(m) {
+                this.mode = 'select';
+                this.selectionMode = m;
+                document.getElementById('btn-copy').classList.remove('glow-active');
+                document.getElementById('btn-cut').classList.remove('glow-active');
+                document.getElementById('btn-' + m).classList.add('glow-active');
+            },
+
+            updatePrecisionColor(v) {
+                let col;
+                if (v < 5) col = '#000000';
+                else if (v > 95) col = '#ffffff';
+                else col = `hsl(${((v-5)/90)*360}, 100%, 50%)`;
+                
+                this.curCol = col;
+                document.getElementById('btn-brush').style.background = col;
                 const container = document.getElementById('shadeContainer');
                 container.innerHTML = '';
-                const brushBtn = document.getElementById('btn-brush');
-                
                 for(let i=0; i<10; i++) {
-                    const lum = 10 + (i * 8);
-                    const col = `hsl(${h}, 100%, ${lum}%)`;
+                    const l = (i * 11);
+                    const shade = `hsl(${v<5||v>95?0:((v-5)/90)*360}, ${v<5||v>95?0:100}%, ${l}%)`;
                     const div = document.createElement('div');
-                    div.className = 'shade-btn';
-                    div.style.background = col;
-                    div.onclick = (e) => {
-                        e.stopPropagation();
-                        this.curCol = col;
-                        brushBtn.style.background = col;
-                    };
+                    div.className = 'shade-btn'; div.style.background = shade;
+                    div.onclick = () => { this.curCol = shade; document.getElementById('btn-brush').style.background = shade; };
                     container.appendChild(div);
                 }
-                this.curCol = `hsl(${h}, 100%, 50%)`;
-                brushBtn.style.background = this.curCol;
+            },
+
+            processSelection() {
+                if (this.selectionPath.length < 3) return;
+                const minX = Math.min(...this.selectionPath.map(p => p.x));
+                const minY = Math.min(...this.selectionPath.map(p => p.y));
+                const maxX = Math.max(...this.selectionPath.map(p => p.x));
+                const maxY = Math.max(...this.selectionPath.map(p => p.y));
+                const w = maxX - minX; const h = maxY - minY;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.translate(-minX, -minY);
+                ctx.beginPath();
+                this.selectionPath.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(this.base, 0, 0);
+                ctx.drawImage(this.edit, 0, 0);
+                
+                this.clipboard = canvas;
+                if (this.selectionMode === 'cut') {
+                    this.save();
+                    this.btx.save();
+                    this.btx.beginPath();
+                    this.selectionPath.forEach((p, i) => i === 0 ? this.btx.moveTo(p.x, p.y) : this.btx.lineTo(p.x, p.y));
+                    this.btx.closePath();
+                    this.btx.clip();
+                    this.btx.clearRect(0,0,this.base.width,this.base.height);
+                    this.btx.restore();
+                }
+                this.selectionMode = null; this.mode = 'pan';
+                document.querySelectorAll('#btn-copy, #btn-cut').forEach(b => b.classList.remove('glow-active'));
+            },
+
+            paste() {
+                if (!this.clipboard) return;
+                this.save();
+                this.etx.drawImage(this.clipboard, (this.base.width/2)-(this.clipboard.width/2), (this.base.height/2)-(this.clipboard.height/2));
+            },
+
+            sticker() {
+                if (!this.clipboard) return;
+                this.save();
+                // Fit to current view logic
+                const viewW = (window.innerWidth * 0.8) / this.scale;
+                const ratio = viewW / this.clipboard.width;
+                const finalW = this.clipboard.width * ratio;
+                const finalH = this.clipboard.height * ratio;
+                const centerX = (-this.ox + window.innerWidth/2) / this.scale;
+                const centerY = (-this.oy + (window.innerHeight-90)/2) / this.scale;
+                this.etx.drawImage(this.clipboard, centerX - finalW/2, centerY - finalH/2, finalW, finalH);
             },
 
             rotate() {
@@ -130,13 +187,10 @@
             },
 
             resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
-            update() { 
-                const s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
-                this.base.style.transform = this.edit.style.transform = s;
-            },
+            update() { this.base.style.transform = this.edit.style.transform = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`; },
 
             save() {
-                if (this.history.length > 15) this.history.shift();
+                if (this.history.length >= 10) this.history.shift();
                 this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
             },
             undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
@@ -152,8 +206,7 @@
                 } else {
                     const a = document.createElement('a'); a.download = 'export.png';
                     const t = document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height;
-                    const ctx = t.getContext('2d');
-                    ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
+                    const ctx = t.getContext('2d'); ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
                     a.href = t.toDataURL(); a.click();
                 }
             },
@@ -169,33 +222,34 @@
             clear() { if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,this.edit.height); }
         };
 
-        // --- Touch Logic ---
         let lastD = 0, sx, sy;
         window.addEventListener('touchstart', e => {
+            if (e.target.closest('.panel') || e.target.closest('.nav')) return;
             if(e.touches.length === 1) {
                 if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
+                else if(Engine.mode === 'select') { Engine.selectionPath = []; }
                 else Engine.save();
             }
         });
         window.addEventListener('touchmove', e => {
+            if (e.target.closest('.panel') || e.target.closest('.nav')) return;
             if(e.touches.length === 2) {
                 let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 if(lastD > 0) Engine.scale *= (d/lastD);
                 lastD = d; Engine.update();
-            } else if(e.touches.length === 1 && Engine.mode !== 'pan') {
+            } else if(e.touches.length === 1) {
                 const r = Engine.edit.getBoundingClientRect();
                 const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width);
                 const y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-                Engine.etx.fillStyle = Engine.curCol;
-                Engine.etx.beginPath();
-                Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2);
-                Engine.etx.fill();
-            } else if (e.touches.length === 1) {
-                Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update();
+                if (Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); }
+                else if (Engine.mode === 'select') { Engine.selectionPath.push({x, y}); }
+                else {
+                    Engine.etx.fillStyle = Engine.curCol;
+                    Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
+                }
             }
         }, {passive: false});
-        window.addEventListener('touchend', () => lastD = 0);
-
+        window.addEventListener('touchend', () => { if(Engine.mode === 'select') Engine.processSelection(); lastD = 0; });
         Engine.init();
     </script>
 </body>
