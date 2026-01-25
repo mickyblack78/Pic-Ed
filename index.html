@@ -3,54 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PicEd Pro 1.0</title>
+    <title>PicEd 5.0</title>
     <style>
-        body { margin: 0; background: #000; color: white; height: 100vh; overflow: hidden; font-family: sans-serif; display: flex; flex-direction: column; }
-        #vp { flex: 1; position: relative; background: #111; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        canvas { position: absolute; touch-action: none; image-rendering: pixelated; }
-        .nav { height: 80px; background: #151515; display: flex; justify-content: space-around; align-items: center; z-index: 3000; border-top: 1px solid #444; }
-        .btn { width: 22%; height: 50px; background: #222; border: 1px solid #555; color: white; font-size: 10px; border-radius: 8px; font-weight: bold; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
-        .panel { position: absolute; bottom: 90px; width: 94%; left: 3%; background: rgba(20,20,20,0.98); border-radius: 12px; padding: 15px; display: none; z-index: 3100; border: 1px solid #444; box-sizing: border-box; }
-        .glow { border-color: #00ff64 !important; color: #00ff64 !important; }
-        #gal { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; min-height: 60px; }
-        .tmb { width: 60px; height: 60px; border: 1px solid #555; background-size: cover; flex-shrink: 0; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
-        input[type=range] { width: 100%; margin: 10px 0; }
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        #vp { flex: 1; position: relative; background: #111; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        canvas { position: absolute; touch-action: none; }
+        .nav { height: 70px; background: #1a1a1a; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #333; }
+        .btn { padding: 10px; background: #333; border: 1px solid #555; color: #fff; border-radius: 5px; font-size: 12px; }
+        .panel { position: absolute; bottom: 80px; left: 10px; right: 10px; background: rgba(30,30,30,0.9); border-radius: 10px; padding: 15px; display: none; z-index: 100; }
+        #gal { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; }
+        .tmb { width: 60px; height: 60px; border: 1px solid #fff; background-size: cover; flex-shrink: 0; }
     </style>
 </head>
 <body>
-    <div id="vp"><canvas id="bc"></canvas><canvas id="ec"></canvas></div>
+    <div id="vp">
+        <canvas id="bc"></canvas>
+        <canvas id="ec"></canvas>
+    </div>
 
     <div id="mP" class="panel">
-        <div style="font-size: 9px; color: #888;">VAULT</div>
         <div id="gal"></div>
-        <div class="grid">
-            <button class="btn" onclick="Engine.io('up')">Import</button>
-            <button class="btn" onclick="Engine.io('dl')">Export</button>
-            <button class="btn" onclick="DB.save()" style="color:#00ff64">Vault Save</button>
-        </div>
-    </div>
-
-    <div id="tP" class="panel">
-        <div class="grid">
-            <button class="btn" id="b-draw" onclick="Engine.setMode('draw')">Draw</button>
-            <button class="btn" id="b-bridge" onclick="Engine.setMode('bridge')">Bridge</button>
-            <button class="btn" id="b-smooth" onclick="Engine.setMode('smooth')">Smooth</button>
-            <button class="btn" onclick="Engine.undo()">Undo</button>
-            <button class="btn" onclick="Engine.clear()" style="color:red">Clear</button>
-        </div>
-    </div>
-
-    <div id="bP" class="panel">
-        SIZE <input type="range" id="sz" min="2" max="100" value="40">
-        ALPHA <input type="range" id="al" min="1" max="100" value="100">
+        <button class="btn" onclick="UI.up()">Import</button>
+        <button class="btn" onclick="DB.save()">Save to Vault</button>
     </div>
 
     <div class="nav">
-        <button class="btn" onclick="Engine.tog('mP')">Menu</button>
-        <button class="btn" onclick="Engine.tog('tP')">Tools</button>
-        <button class="btn" onclick="Engine.tog('bP')">Brush</button>
-        <button id="eB" class="btn" onclick="Engine.toggleEdit()">Pan</button>
+        <button class="btn" onclick="UI.tog('mP')">Vault</button>
+        <button id="eB" class="btn" onclick="UI.edit()">Pan</button>
     </div>
 
 <script>
@@ -59,110 +38,105 @@ const DB = {
     init() {
         let r = indexedDB.open("PicVault", 1);
         r.onupgradeneeded = e => e.target.result.createObjectStore("pics", {autoIncrement:true});
-        r.onsuccess = e => { this.db = e.target.result; this.render(); };
+        r.onsuccess = e => { this.db = e.target.result; this.load(); };
     },
     save() {
-        const c = document.createElement('canvas'); c.width = Engine.bc.width; c.height = Engine.bc.height;
-        const x = c.getContext('2d'); x.drawImage(Engine.bc,0,0); x.drawImage(Engine.ec,0,0);
-        this.db.transaction("pics","readwrite").objectStore("pics").add(c.toDataURL());
-        this.render();
+        let c = document.createElement('canvas');
+        c.width = Engine.bc.width; c.height = Engine.bc.height;
+        let x = c.getContext('2d');
+        x.drawImage(Engine.bc, 0, 0);
+        x.drawImage(Engine.ec, 0, 0);
+        let tx = this.db.transaction("pics", "readwrite");
+        tx.objectStore("pics").add(c.toDataURL());
+        tx.onsuccess = () => this.load();
     },
-    render() {
-        const g = document.getElementById('gal'); g.innerHTML = '';
+    load() {
+        let g = document.getElementById('gal'); g.innerHTML = '';
         this.db.transaction("pics").objectStore("pics").openCursor().onsuccess = e => {
-            const cursor = e.target.result;
-            if(cursor) {
-                const d = document.createElement('div'); d.className='tmb'; d.style.backgroundImage=`url(${cursor.value})`;
-                d.onclick = () => Engine.loadRaw(cursor.value); g.prepend(d);
-                cursor.continue();
+            let cursor = e.target.result;
+            if (cursor) {
+                let img = document.createElement('div');
+                img.className = 'tmb';
+                img.style.backgroundImage = `url(${cursor.value})`;
+                img.onclick = () => UI.loadToCanvas(cursor.value);
+                g.prepend(img); cursor.continue();
             }
         };
     }
 };
 
-const Engine = {
-    bc: document.getElementById('bc'), ec: document.getElementById('ec'), btx: null, etx: null,
-    mode: 'pan', scale: 1, ox: 0, oy: 0, hist: [],
-    init() {
-        this.btx = this.bc.getContext('2d'); this.etx = this.ec.getContext('2d');
-        this.bc.width = this.ec.width = 800; this.bc.height = this.ec.height = 800;
-        this.btx.fillStyle = '#222'; this.btx.fillRect(0,0,800,800);
-        this.update(); DB.init();
+const UI = {
+    mode: 'pan',
+    tog(id) { let p = document.getElementById(id); p.style.display = p.style.display === 'block' ? 'none' : 'block'; },
+    edit() {
+        this.mode = this.mode === 'pan' ? 'draw' : 'pan';
+        document.getElementById('eB').innerText = this.mode === 'pan' ? 'Pan' : 'Draw';
     },
-    tog(id) { 
-        const p = document.getElementById(id); const v = p.style.display === 'block';
-        document.querySelectorAll('.panel').forEach(x => x.style.display = 'none');
-        if(!v) p.style.display = 'block';
+    up() {
+        let i = document.createElement('input'); i.type = 'file';
+        i.onchange = e => {
+            let f = e.target.files[0];
+            let r = new FileReader();
+            r.onload = ev => {
+                let img = new Image();
+                img.onload = () => Engine.setup(img);
+                img.src = ev.target.result;
+            };
+            r.readAsDataURL(f);
+        };
+        i.click();
     },
-    toggleEdit() {
-        this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
-        document.getElementById('eB').innerText = (this.mode === 'pan') ? 'PAN' : 'EDIT';
-        this.setMode(this.mode);
-    },
-    setMode(m) {
-        this.mode = m; document.querySelectorAll('.grid .btn').forEach(b => b.classList.remove('glow'));
-        const t = document.getElementById('b-'+m); if(t) t.classList.add('glow');
-    },
-    io(type) {
-        if(type === 'up') {
-            const i = document.createElement('input'); i.type = 'file';
-            i.onchange = e => {
-                const img = new Image();
-                img.onload = () => {
-                    this.bc.width = this.ec.width = img.width; this.bc.height = this.ec.height = img.height;
-                    this.btx.drawImage(img,0,0); this.ox = 0; this.oy = 0; this.scale = 0.5; this.update();
-                };
-                img.src = URL.createObjectURL(e.target.files[0]);
-            }; i.click();
-        } else {
-            const c = document.createElement('canvas'); c.width = this.bc.width; c.height = this.bc.height;
-            const x = c.getContext('2d'); x.drawImage(this.bc,0,0); x.drawImage(this.ec,0,0);
-            const a = document.createElement('a'); a.download = 'art.png'; a.href = c.toDataURL(); a.click();
-        }
-    },
-    loadRaw(data) { const i = new Image(); i.onload = () => this.etx.drawImage(i,0,0); i.src = data; },
-    bridge(x,y,s) {
-        const d = this.btx.getImageData(x-s,y-s,s*2,s*2).data;
-        let r=0,g=0,b=0,c=0; for(let i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];c++;}
-        this.etx.fillStyle = `rgba(${r/c},${g/c},${b/c},${document.getElementById('al').value/100})`;
-        this.etx.beginPath(); this.etx.arc(x,y,s/2,0,Math.PI*2); this.etx.fill();
-    },
-    save() { if(this.hist.length > 10) this.hist.shift(); this.hist.push(this.etx.getImageData(0,0,this.ec.width,this.ec.height)); },
-    undo() { if(this.hist.length) this.etx.putImageData(this.hist.pop(),0,0); },
-    clear() { if(confirm('Clear?')) this.etx.clearRect(0,0,this.ec.width,this.ec.height); },
-    update() { this.bc.style.transform = this.ec.style.transform = `translate(${this.ox}px,${this.oy}px) scale(${this.scale})`; }
+    loadToCanvas(data) {
+        let img = new Image();
+        img.onload = () => Engine.setup(img);
+        img.src = data;
+    }
 };
 
-let ld = 0, sx, sy;
+const Engine = {
+    bc: document.getElementById('bc'),
+    ec: document.getElementById('ec'),
+    btx: null, etx: null,
+    setup(img) {
+        this.bc.width = this.ec.width = img.width;
+        this.bc.height = this.ec.height = img.height;
+        this.btx.drawImage(img, 0, 0);
+        this.scale = 0.5; this.update();
+    },
+    update() {
+        let s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
+        this.bc.style.transform = this.ec.style.transform = s;
+    },
+    init() {
+        this.btx = this.bc.getContext('2d');
+        this.etx = this.ec.getContext('2d');
+        this.ox = 0; this.oy = 0; this.scale = 1;
+        DB.init();
+    }
+};
+
+let sx, sy, ox, oy;
 window.addEventListener('touchstart', e => {
-    if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-    if(e.touches.length === 1) {
-        if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
-        else Engine.save();
+    if (UI.mode === 'pan') {
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+        ox = Engine.ox; oy = Engine.oy;
     }
 });
 window.addEventListener('touchmove', e => {
-    if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-    const r = Engine.ec.getBoundingClientRect();
-    const x = (e.touches[0].clientX - r.left) * (Engine.ec.width/r.width);
-    const y = (e.touches[0].clientY - r.top) * (Engine.ec.height/r.height);
-    if(e.touches.length === 2) {
-        let d = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY);
-        if(ld > 0) { Engine.scale *= (d/ld); Engine.update(); } ld = d;
-    } else if(e.touches.length === 1) {
-        if(Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); }
-        else if(Engine.mode === 'draw') {
-            Engine.etx.fillStyle = 'red'; Engine.etx.globalAlpha = document.getElementById('al').value/100;
-            Engine.etx.beginPath(); Engine.etx.arc(x,y,document.getElementById('sz').value/2,0,Math.PI*2); Engine.etx.fill();
-        } else if(Engine.mode === 'bridge') Engine.bridge(x,y,parseInt(document.getElementById('sz').value));
-        else if(Engine.mode === 'smooth') {
-            Engine.etx.filter = 'blur(4px)'; Engine.etx.drawImage(Engine.ec, x-20, y-20, 40, 40, x-20, y-20, 40, 40); Engine.etx.filter = 'none';
-        }
+    if (UI.mode === 'pan') {
+        Engine.ox = ox + (e.touches[0].clientX - sx);
+        Engine.oy = oy + (e.touches[0].clientY - sy);
+        Engine.update();
+    } else {
+        let r = Engine.ec.getBoundingClientRect();
+        let x = (e.touches[0].clientX - r.left) * (Engine.ec.width / r.width);
+        let y = (e.touches[0].clientY - r.top) * (Engine.ec.height / r.height);
+        Engine.etx.fillStyle = 'red';
+        Engine.etx.beginPath(); Engine.etx.arc(x, y, 10, 0, Math.PI * 2); Engine.etx.fill();
     }
-}, {passive:false});
-window.addEventListener('touchend', () => ld = 0);
+});
+
 Engine.init();
 </script>
 </body>
 </html>
-
