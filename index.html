@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V3.6</title>
+    <title>Pic Ed Stability - V3.9</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
@@ -11,7 +11,9 @@
         .nav { height: 90px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 25px; border-top: 1px solid #444; z-index: 3000; }
         .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; cursor: pointer; }
         .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
-        .panel { position: absolute; bottom: 110px; width: 94%; left: 3%; background: rgba(10,10,10,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; box-sizing: border-box; }
+        .panel { position: absolute; bottom: 110px; width: 94%; left: 3%; background: rgba(10,10,10,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; box-sizing: border-box; max-height: 70vh; overflow-y: auto; }
+        .gallery { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid #333; }
+        .thumb { min-width: 60px; height: 60px; border: 1px solid #555; border-radius: 5px; background-size: cover; flex-shrink: 0; }
         .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 15px; }
         .shade-btn { height: 30px; border-radius: 5px; border: 1px solid #444; }
         .slider-wrap { margin-bottom: 12px; }
@@ -29,10 +31,14 @@
     </div>
 
     <div id="menuPanel" class="panel">
+        <div class="slider-label">QSAVE SLOTS (TAP FOR OPTIONS)</div>
+        <div id="qGallery" class="gallery"></div>
         <div class="tool-grid">
-            <button class="btn" onclick="Engine.io('up')">Upload</button>
+            <button class="btn" onclick="Engine.io('up')">Import Pic</button>
             <button class="btn" onclick="Engine.io('dl')">Export</button>
             <button class="btn" onclick="Engine.qSave()">QSave</button>
+            <button class="btn" onclick="Engine.vaultSave()">Vault Save</button>
+            <button class="btn" onclick="Engine.clearVault()" style="color:#ff8800">Clear Vault</button>
             <button class="btn" onclick="Engine.cycleSamples()">Samples</button>
             <button class="btn" onclick="Engine.resetView()">Center</button>
         </div>
@@ -72,145 +78,126 @@
             base: document.getElementById('baseCvs'), edit: document.getElementById('editCvs'),
             btx: null, etx: null, mode: 'pan', scale: 0.5, ox: 0, oy: 0,
             curCol: 'hsl(0, 100%, 50%)', history: [], clipboard: null, 
-            path: [], samples: [
-                'https://images.unsplash.com/photo-1464822759023-fed622ff2c33?w=800',
-                'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800'
-            ], sIdx: 0,
+            path: [], samples: ['https://images.unsplash.com/photo-1464822759023-fed622ff2c33?w=800','https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800'], sIdx: 0,
 
             init() {
                 this.btx = this.base.getContext('2d', {willReadFrequently: true});
                 this.etx = this.edit.getContext('2d', {willReadFrequently: true});
-                this.updateColor(50); this.loadImg(this.samples[0]);
+                this.updateColor(50); this.loadImg(this.samples[0]); this.renderGallery();
             },
 
-            toggleUI(type) {
-                const p = document.getElementById(type + 'Panel');
-                const isOpen = p.style.display === 'block';
-                document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
-                document.querySelectorAll('.nav .btn').forEach(b => { if(b.id !== 'btn-edit') b.classList.remove('glow-active')});
-                if (!isOpen) { p.style.display = 'block'; document.getElementById('btn-' + type).classList.add('glow-active'); }
+            toggleUI(t) {
+                const p = document.getElementById(t+'Panel'); const isOpen = p.style.display==='block';
+                document.querySelectorAll('.panel').forEach(el=>el.style.display='none');
+                document.querySelectorAll('.nav .btn').forEach(b=>{if(b.id!=='btn-edit') b.classList.remove('glow-active')});
+                if(!isOpen){ p.style.display='block'; document.getElementById('btn-'+t).classList.add('glow-active'); if(t==='menu') this.renderGallery(); }
             },
 
             toggleEdit() {
-                this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
-                const b = document.getElementById('btn-edit');
-                b.innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
-                this.mode === 'pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
-                this.setMode(this.mode);
+                this.mode = (this.mode==='pan') ? 'draw' : 'pan';
+                const b = document.getElementById('btn-edit'); b.innerText = this.mode==='pan' ? 'Edit Off' : 'Edit On';
+                this.mode==='pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
             },
 
             setMode(m) {
-                if(this.mode === 'pan' && m !== 'pan') { this.toggleEdit(); }
-                if(this.mode === m && m === 'pick') { this.mode = 'draw'; } else { this.mode = m; }
-                document.querySelectorAll('.tool-grid .btn').forEach(b => b.classList.remove('glow-active'));
-                const target = document.getElementById('btn-' + m);
-                if(target) target.classList.add('glow-active');
+                if(this.mode==='pan' && m!=='pan') this.toggleEdit();
+                if(this.mode===m && m==='pick') { this.mode='draw'; } else { this.mode=m; }
+                document.querySelectorAll('.tool-grid .btn').forEach(b=>b.classList.remove('glow-active'));
+                const t=document.getElementById('btn-'+m); if(t) t.classList.add('glow-active');
             },
 
             updateColor(v) {
-                let h = v < 5 ? 0 : v > 95 ? 0 : ((v-5)/90)*360;
-                let s = v < 5 || v > 95 ? 0 : 100, l = v < 5 ? 0 : v > 95 ? 100 : 50;
-                this.curCol = `hsl(${h}, ${s}%, ${l}%)`;
-                document.getElementById('btn-brush').style.background = this.curCol;
-                const container = document.getElementById('shadeContainer'); container.innerHTML = '';
-                for(let i=0; i<10; i++) {
-                    const shade = `hsl(${h}, ${s}%, ${i * 11}%)`;
-                    const div = document.createElement('div'); div.className = 'shade-btn'; div.style.background = shade;
-                    div.onclick = () => { this.curCol = shade; document.getElementById('btn-brush').style.background = shade; };
-                    container.appendChild(div);
+                let h=v<5?0:v>95?0:((v-5)/90)*360, s=v<5||v>95?0:100, l=v<5?0:v>95?100:50;
+                this.curCol=`hsl(${h},${s}%,${l}%)`; document.getElementById('btn-brush').style.background=this.curCol;
+                const c=document.getElementById('shadeContainer'); c.innerHTML='';
+                for(let i=0;i<10;i++){ 
+                    const sh=`hsl(${h},${s}%,${i*11}%)`; const d=document.createElement('div'); d.className='shade-btn'; d.style.background=sh;
+                    d.onclick=()=>{this.curCol=sh; document.getElementById('btn-brush').style.background=sh;}; c.appendChild(d);
                 }
             },
 
-            handleTap(x, y) {
-                if(this.mode === 'paste' || this.mode === 'sticker') {
-                    if(!this.clipboard) return; this.save();
-                    let w = this.clipboard.width, h = this.clipboard.height;
-                    if(this.mode === 'sticker') { const sW = (window.innerWidth*0.8)/this.scale; const r = sW/w; w *= r; h *= r; }
-                    this.etx.drawImage(this.clipboard, x - w/2, y - h/2, w, h);
-                    this.setMode('draw');
-                } else if(this.mode === 'text') {
-                    const txt = prompt("Enter Text:"); if(!txt) return; this.save();
-                    this.etx.font = `${document.getElementById('bSize').value}px sans-serif`;
-                    this.etx.fillStyle = this.curCol; this.etx.globalAlpha = document.getElementById('bAlpha').value/100;
-                    this.etx.fillText(txt, x, y); this.setMode('draw');
+            qSave() {
+                let s=JSON.parse(localStorage.getItem('qS')||"[]"); if(s.length>=5) s.shift();
+                s.push({id: Date.now(), data: this.edit.toDataURL()}); localStorage.setItem('qS',JSON.stringify(s)); this.renderGallery();
+            },
+
+            vaultSave() { localStorage.setItem('v_'+Date.now(), this.edit.toDataURL()); alert('Vaulted'); },
+            clearVault() { if(confirm('Wipe Vault?')){ Object.keys(localStorage).forEach(k=>{if(k.startsWith('v_'))localStorage.removeItem(k)}); alert('Vault Empty'); }},
+
+            renderGallery() {
+                const g=document.getElementById('qGallery'); g.innerHTML='';
+                const s=JSON.parse(localStorage.getItem('qS')||"[]");
+                s.forEach((item, idx)=>{
+                    const d=document.createElement('div'); d.className='thumb'; d.style.backgroundImage=`url(${item.data})`;
+                    d.onclick=()=>{
+                        const choice = prompt("Type 'L' to Load or 'D' to Delete:");
+                        if(choice && choice.toLowerCase()==='l'){ this.save(); const i=new Image(); i.onload=()=>this.etx.drawImage(i,0,0); i.src=item.data; }
+                        else if(choice && choice.toLowerCase()==='d'){ s.splice(idx,1); localStorage.setItem('qS',JSON.stringify(s)); this.renderGallery(); }
+                    }; g.appendChild(d);
+                });
+            },
+
+            handleTap(x,y) {
+                if(!this.clipboard && (this.mode==='paste'||this.mode==='sticker')) return;
+                this.save();
+                if(this.mode==='text'){
+                    const t=prompt("Text:"); if(t){this.etx.font=`${document.getElementById('bSize').value}px sans-serif`; this.etx.fillStyle=this.curCol; this.etx.globalAlpha=document.getElementById('bAlpha').value/100; this.etx.fillText(t,x,y);}
+                } else {
+                    let w=this.clipboard.width, h=this.clipboard.height;
+                    if(this.mode==='sticker'){ const sw=(window.innerWidth*0.8)/this.scale; const r=sw/w; w*=r; h*=r; }
+                    this.etx.drawImage(this.clipboard, x-w/2, y-h/2, w, h);
                 }
+                this.setMode('draw');
             },
 
             processSelection() {
-                if(this.path.length < 3) return;
-                const xs = this.path.map(p => p.x), ys = this.path.map(p => p.y);
-                const minX = Math.min(...xs), minY = Math.min(...ys), w = Math.max(...xs)-minX, h = Math.max(...ys)-minY;
-                const c = document.createElement('canvas'); c.width = w; c.height = h;
-                const ctx = c.getContext('2d'); ctx.translate(-minX, -minY);
-                ctx.beginPath(); this.path.forEach((p,i) => i==0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.clip();
-                ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0);
-                this.clipboard = c;
-                if(this.mode === 'cut') { this.save(); this.btx.save(); this.btx.beginPath(); this.path.forEach((p,i) => i==0?this.btx.moveTo(p.x,p.y):this.btx.lineTo(p.x,p.y)); this.btx.closePath(); this.btx.clip(); this.btx.clearRect(0,0,this.base.width,this.base.height); this.btx.restore(); }
-                this.path = []; this.etx.clearRect(0,0,this.edit.width,this.edit.height); this.setMode('draw');
+                if(this.path.length<3) return;
+                const xs=this.path.map(p=>p.x), ys=this.path.map(p=>p.y);
+                const minX=Math.min(...xs), minY=Math.min(...ys), w=Math.max(...xs)-minX, h=Math.max(...ys)-minY;
+                const c=document.createElement('canvas'); c.width=w; c.height=h; const ctx=c.getContext('2d'); ctx.translate(-minX,-minY);
+                ctx.beginPath(); this.path.forEach((p,i)=>i==0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.closePath(); ctx.clip();
+                ctx.drawImage(this.base,0,0); ctx.drawImage(this.edit,0,0); this.clipboard=c;
+                if(this.mode==='cut'){ this.save(); this.btx.save(); this.btx.beginPath(); this.path.forEach((p,i)=>i==0?this.btx.moveTo(p.x,p.y):this.btx.lineTo(p.x,p.y)); this.btx.closePath(); this.btx.clip(); this.btx.clearRect(0,0,this.base.width,this.base.height); this.btx.restore(); }
+                this.path=[]; this.etx.clearRect(0,0,this.edit.width,this.edit.height); this.setMode('draw');
             },
 
-            smooth(x, y, sz) {
-                const data = this.etx.getImageData(x-sz/2, y-sz/2, sz, sz);
-                for(let i=0; i<data.data.length; i+=4) { data.data[i+3] *= 0.9; }
-                this.etx.putImageData(data, x-sz/2, y-sz/2);
+            bridge(x,y,sz) {
+                const d=this.btx.getImageData(x-sz,y-sz,sz*2,sz*2).data; let r=0,g=0,b=0,c=0;
+                for(let i=0;i<d.length;i+=16){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; c++; }
+                this.etx.fillStyle=`rgb(${r/c},${g/c},${b/c})`; this.etx.beginPath(); this.etx.arc(x,y,sz/2,0,Math.PI*2); this.etx.fill();
             },
 
-            bridge(x, y, sz) {
-                const d = this.btx.getImageData(x-sz, y-sz, sz*2, sz*2).data;
-                let r=0, g=0, b=0, a=0, c=0;
-                for(let i=0; i<d.length; i+=16) { r+=d[i]; g+=d[i+1]; b+=d[i+2]; a+=d[i+3]; c++; }
-                this.etx.fillStyle = `rgba(${r/c},${g/c},${b/c},${(a/c)/255})`;
-                this.etx.beginPath(); this.etx.arc(x,y,sz/2,0,Math.PI*2); this.etx.fill();
+            smooth(x,y,sz) {
+                const d=this.etx.getImageData(x-sz/2,y-sz/2,sz,sz); for(let i=0;i<d.data.length;i+=4) d.data[i+3]*=0.9;
+                this.etx.putImageData(d,x-sz/2,y-sz/2);
             },
 
-            resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
-            update() { this.base.style.transform = this.edit.style.transform = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`; },
-            save() { if(this.history.length >= 10) this.history.shift(); this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height)); },
-            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
-            qSave() { localStorage.setItem('qsave', this.edit.toDataURL()); alert('Stored!'); },
-            cycleSamples() { this.sIdx = (this.sIdx + 1) % this.samples.length; this.loadImg(this.samples[this.sIdx]); },
-            io(t) { if(t==='up') { const i=document.createElement('input'); i.type='file'; i.onchange=e=>{const r=new FileReader(); r.onload=v=>this.loadImg(v.target.result); r.readAsDataURL(e.target.files[0]);}; i.click(); } else { const a=document.createElement('a'); a.download='edit.png'; const c=document.createElement('canvas'); c.width=this.base.width; c.height=this.base.height; const x=c.getContext('2d'); x.drawImage(this.base,0,0); x.drawImage(this.edit,0,0); a.href=c.toDataURL(); a.click(); }},
+            resetView() { this.scale=0.5; this.ox=0; this.oy=0; this.update(); },
+            update() { this.base.style.transform=this.edit.style.transform=`translate(${this.ox}px,${this.oy}px) scale(${this.scale})`; },
+            save() { if(this.history.length>=10) this.history.shift(); this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height)); },
+            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(),0,0); },
+            cycleSamples() { this.sIdx=(this.sIdx+1)%this.samples.length; this.loadImg(this.samples[this.sIdx]); },
+            io(t) { 
+                if(t==='up'){ 
+                    const i=document.createElement('input'); i.type='file'; 
+                    i.onchange=e=>{
+                        const r=new FileReader(); r.onload=v=>{
+                            const m=new Image(); m.onload=()=>{this.clipboard=m; this.setMode('sticker'); this.toggleUI('menu');};
+                            m.src=v.target.result;
+                        }; r.readAsDataURL(e.target.files[0]);
+                    }; i.click(); 
+                } else { 
+                    const a=document.createElement('a'); a.download='edit.png'; const c=document.createElement('canvas'); c.width=this.base.width; c.height=this.base.height; const x=c.getContext('2d'); x.drawImage(this.base,0,0); x.drawImage(this.edit,0,0); a.href=c.toDataURL(); a.click(); 
+                }
+            },
             loadImg(u) { const m=new Image(); m.crossOrigin="anonymous"; m.onload=()=>{this.base.width=this.edit.width=m.width; this.base.height=this.edit.height=m.height; this.btx.drawImage(m,0,0); this.resetView();}; m.src=u; },
-            clear() { if(confirm('Burn?')) { this.etx.clearRect(0,0,this.edit.width,this.edit.height); this.history=[]; }}
+            clear() { if(confirm('Burn?')){ this.etx.clearRect(0,0,this.edit.width,this.edit.height); this.history=[]; }}
         };
 
-        let lastD=0, sx, sy;
-        window.addEventListener('touchstart', e => {
-            if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-            const r = Engine.edit.getBoundingClientRect();
-            const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width), y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-            if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
-                else if(['copy','cut'].includes(Engine.mode)) { Engine.path = [{x,y}]; }
-                else if(['paste','sticker','text'].includes(Engine.mode)) { Engine.handleTap(x,y); }
-                else if(['draw','smooth','bridge'].includes(Engine.mode)) Engine.save();
-            }
-        });
-        window.addEventListener('touchmove', e => {
-            if(e.target.closest('.panel') || e.target.closest('.nav')) return;
-            const r = Engine.edit.getBoundingClientRect();
-            const x = (e.touches[0].clientX - r.left) * (Engine.edit.width/r.width), y = (e.touches[0].clientY - r.top) * (Engine.edit.height/r.height);
-            if(e.touches.length === 2) {
-                let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                if(lastD > 0) { Engine.scale *= (d/lastD); Engine.update(); } lastD = d;
-            } else if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); return; }
-                if(['copy','cut'].includes(Engine.mode)) {
-                    Engine.path.push({x,y}); Engine.etx.clearRect(0,0,Engine.edit.width,Engine.edit.height);
-                    Engine.etx.strokeStyle = 'white'; Engine.etx.setLineDash([5, 5]); Engine.etx.beginPath();
-                    Engine.path.forEach((p,i) => i==0?Engine.etx.moveTo(p.x,p.y):Engine.etx.lineTo(p.x,p.y)); Engine.etx.stroke();
-                }
-                else if(Engine.mode === 'pick') { const p = Engine.btx.getImageData(x,y,1,1).data; Engine.curCol = `rgb(${p[0]},${p[1]},${p[2]})`; document.getElementById('btn-brush').style.background = Engine.curCol; }
-                else if(Engine.mode === 'smooth') { Engine.smooth(x, y, document.getElementById('bSize').value); }
-                else if(Engine.mode === 'bridge') { Engine.bridge(x, y, document.getElementById('bSize').value); }
-                else if(Engine.mode === 'draw') {
-                    Engine.etx.globalAlpha = document.getElementById('bAlpha').value / 100; Engine.etx.fillStyle = Engine.curCol;
-                    Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
-                }
-            }
-        }, {passive: false});
-        window.addEventListener('touchend', () => { if(['copy','cut'].includes(Engine.mode)) Engine.processSelection(); lastD = 0; });
-        Engine.init();
-    </script>
-</body>
-</html>
+        let ld=0, sx, sy;
+        window.addEventListener('touchstart', e=>{
+            if(e.target.closest('.panel')||e.target.closest('.nav')) return;
+            const r=Engine.edit.getBoundingClientRect(); const x=(e.touches[0].clientX-r.left)*(Engine.edit.width/r.width), y=(e.touches[0].clientY-r.top)*(Engine.edit.height/r.height);
+            if(e.touches.length===1){
+                if(Engine.mode==='pan'){ sx=e.touches[0].clientX-Engine.ox;
+        
