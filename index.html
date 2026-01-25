@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V3.5</title>
+    <title>Pic Ed Stability - V3.6</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; }
@@ -42,6 +42,7 @@
         <div class="tool-grid">
             <button class="btn" onclick="Engine.undo()">Undo</button>
             <button class="btn" id="btn-text" onclick="Engine.setMode('text')">Text</button>
+            <button class="btn" id="btn-bridge" onclick="Engine.setMode('bridge')">Bridge</button>
             <button class="btn" id="btn-smooth" onclick="Engine.setMode('smooth')">Smooth</button>
             <button class="btn" id="btn-pick" onclick="Engine.setMode('pick')">Picker</button>
             <button class="btn" id="btn-copy" onclick="Engine.setMode('copy')">Copy</button>
@@ -99,6 +100,7 @@
             },
 
             setMode(m) {
+                if(this.mode === 'pan' && m !== 'pan') { this.toggleEdit(); }
                 if(this.mode === m && m === 'pick') { this.mode = 'draw'; } else { this.mode = m; }
                 document.querySelectorAll('.tool-grid .btn').forEach(b => b.classList.remove('glow-active'));
                 const target = document.getElementById('btn-' + m);
@@ -153,6 +155,14 @@
                 this.etx.putImageData(data, x-sz/2, y-sz/2);
             },
 
+            bridge(x, y, sz) {
+                const d = this.btx.getImageData(x-sz, y-sz, sz*2, sz*2).data;
+                let r=0, g=0, b=0, a=0, c=0;
+                for(let i=0; i<d.length; i+=16) { r+=d[i]; g+=d[i+1]; b+=d[i+2]; a+=d[i+3]; c++; }
+                this.etx.fillStyle = `rgba(${r/c},${g/c},${b/c},${(a/c)/255})`;
+                this.etx.beginPath(); this.etx.arc(x,y,sz/2,0,Math.PI*2); this.etx.fill();
+            },
+
             resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
             update() { this.base.style.transform = this.edit.style.transform = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`; },
             save() { if(this.history.length >= 10) this.history.shift(); this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height)); },
@@ -173,7 +183,7 @@
                 if(Engine.mode === 'pan') { sx = e.touches[0].clientX - Engine.ox; sy = e.touches[0].clientY - Engine.oy; }
                 else if(['copy','cut'].includes(Engine.mode)) { Engine.path = [{x,y}]; }
                 else if(['paste','sticker','text'].includes(Engine.mode)) { Engine.handleTap(x,y); }
-                else if(Engine.mode === 'draw' || Engine.mode === 'smooth') Engine.save();
+                else if(['draw','smooth','bridge'].includes(Engine.mode)) Engine.save();
             }
         });
         window.addEventListener('touchmove', e => {
@@ -184,14 +194,15 @@
                 let d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 if(lastD > 0) { Engine.scale *= (d/lastD); Engine.update(); } lastD = d;
             } else if(e.touches.length === 1) {
-                if(Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); }
-                else if(['copy','cut'].includes(Engine.mode)) {
+                if(Engine.mode === 'pan') { Engine.ox = e.touches[0].clientX - sx; Engine.oy = e.touches[0].clientY - sy; Engine.update(); return; }
+                if(['copy','cut'].includes(Engine.mode)) {
                     Engine.path.push({x,y}); Engine.etx.clearRect(0,0,Engine.edit.width,Engine.edit.height);
                     Engine.etx.strokeStyle = 'white'; Engine.etx.setLineDash([5, 5]); Engine.etx.beginPath();
                     Engine.path.forEach((p,i) => i==0?Engine.etx.moveTo(p.x,p.y):Engine.etx.lineTo(p.x,p.y)); Engine.etx.stroke();
                 }
                 else if(Engine.mode === 'pick') { const p = Engine.btx.getImageData(x,y,1,1).data; Engine.curCol = `rgb(${p[0]},${p[1]},${p[2]})`; document.getElementById('btn-brush').style.background = Engine.curCol; }
                 else if(Engine.mode === 'smooth') { Engine.smooth(x, y, document.getElementById('bSize').value); }
+                else if(Engine.mode === 'bridge') { Engine.bridge(x, y, document.getElementById('bSize').value); }
                 else if(Engine.mode === 'draw') {
                     Engine.etx.globalAlpha = document.getElementById('bAlpha').value / 100; Engine.etx.fillStyle = Engine.curCol;
                     Engine.etx.beginPath(); Engine.etx.arc(x, y, document.getElementById('bSize').value/2, 0, Math.PI*2); Engine.etx.fill();
