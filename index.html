@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PicEd 5.0</title>
+    <title>PicEd 5.0 Fixed</title>
     <style>
         body { margin: 0; background: #000; color: #fff; font-family: sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         #vp { flex: 1; position: relative; background: #111; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         canvas { position: absolute; touch-action: none; }
-        .nav { height: 70px; background: #1a1a1a; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #333; }
+        .nav { height: 70px; background: #1a1a1a; display: flex; justify-content: space-around; align-items: center; border-top: 1px solid #333; z-index: 200; }
         .btn { padding: 10px; background: #333; border: 1px solid #555; color: #fff; border-radius: 5px; font-size: 12px; }
-        .panel { position: absolute; bottom: 80px; left: 10px; right: 10px; background: rgba(30,30,30,0.9); border-radius: 10px; padding: 15px; display: none; z-index: 100; }
-        #gal { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; }
+        .panel { position: absolute; bottom: 80px; left: 10px; right: 10px; background: rgba(30,30,30,0.95); border-radius: 10px; padding: 15px; display: none; z-index: 100; }
+        #gal { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; min-height: 60px; }
         .tmb { width: 60px; height: 60px; border: 1px solid #fff; background-size: cover; flex-shrink: 0; }
     </style>
 </head>
@@ -38,7 +38,7 @@ const DB = {
     init() {
         let r = indexedDB.open("PicVault", 1);
         r.onupgradeneeded = e => e.target.result.createObjectStore("pics", {autoIncrement:true});
-        r.onsuccess = e => { this.db = e.target.result; this.load(); };
+        r.onsuccess = e => { this.db = e.target.result; this.render(); };
     },
     save() {
         let c = document.createElement('canvas');
@@ -48,9 +48,9 @@ const DB = {
         x.drawImage(Engine.ec, 0, 0);
         let tx = this.db.transaction("pics", "readwrite");
         tx.objectStore("pics").add(c.toDataURL());
-        tx.onsuccess = () => this.load();
+        tx.oncomplete = () => this.render();
     },
-    load() {
+    render() {
         let g = document.getElementById('gal'); g.innerHTML = '';
         this.db.transaction("pics").objectStore("pics").openCursor().onsuccess = e => {
             let cursor = e.target.result;
@@ -96,12 +96,12 @@ const UI = {
 const Engine = {
     bc: document.getElementById('bc'),
     ec: document.getElementById('ec'),
-    btx: null, etx: null,
+    btx: null, etx: null, ox: 0, oy: 0, scale: 1,
     setup(img) {
         this.bc.width = this.ec.width = img.width;
         this.bc.height = this.ec.height = img.height;
         this.btx.drawImage(img, 0, 0);
-        this.scale = 0.5; this.update();
+        this.ox = 0; this.oy = 0; this.scale = 0.5; this.update();
     },
     update() {
         let s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
@@ -110,22 +110,23 @@ const Engine = {
     init() {
         this.btx = this.bc.getContext('2d');
         this.etx = this.ec.getContext('2d');
-        this.ox = 0; this.oy = 0; this.scale = 1;
         DB.init();
     }
 };
 
-let sx, sy, ox, oy;
+let sx, sy, startOx, startOy;
 window.addEventListener('touchstart', e => {
+    if (e.target.closest('.nav') || e.target.closest('.panel')) return;
     if (UI.mode === 'pan') {
         sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-        ox = Engine.ox; oy = Engine.oy;
+        startOx = Engine.ox; startOy = Engine.oy;
     }
 });
 window.addEventListener('touchmove', e => {
+    if (e.target.closest('.nav') || e.target.closest('.panel')) return;
     if (UI.mode === 'pan') {
-        Engine.ox = ox + (e.touches[0].clientX - sx);
-        Engine.oy = oy + (e.touches[0].clientY - sy);
+        Engine.ox = startOx + (e.touches[0].clientX - sx);
+        Engine.oy = startOy + (e.touches[0].clientY - sy);
         Engine.update();
     } else {
         let r = Engine.ec.getBoundingClientRect();
@@ -134,7 +135,7 @@ window.addEventListener('touchmove', e => {
         Engine.etx.fillStyle = 'red';
         Engine.etx.beginPath(); Engine.etx.arc(x, y, 10, 0, Math.PI * 2); Engine.etx.fill();
     }
-});
+}, {passive: false});
 
 Engine.init();
 </script>
