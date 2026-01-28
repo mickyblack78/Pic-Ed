@@ -3,259 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retoucher Pro</title>
+    <title>Retoucher Pro Fluoro</title>
     <style>
-        :root { --bg: #0a0a0a; --glass: rgba(30, 30, 30, 0.85); --accent: #007aff; }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        #viewer { position: relative; width: 100vw; height: 100vh; overflow: hidden; touch-action: none; display: flex; align-items: center; justify-content: center; }
-        canvas { position: absolute; image-rendering: pixelated; }
+        :root { --bg: #000; --glass: rgba(20, 20, 20, 0.95); --fluoro: #00ff66; --glow: 0 0 20px #00ff66, 0 0 40px rgba(0,255,102,0.3); }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: -apple-system, sans-serif; }
+        #viewer { width: 100vw; height: 100vh; position: relative; overflow: hidden; touch-action: none; background: #080808; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
         
-        /* iPhone Style Dock */
-        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; padding: 10px; background: var(--glass); backdrop-filter: blur(15px); border-radius: 24px; border: 0.5px solid rgba(255,255,255,0.1); z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-        .box { width: 55px; height: 55px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-size: 9px; font-weight: bold; cursor: pointer; transition: 0.2s; background: rgba(255,255,255,0.05); text-transform: uppercase; }
-        .box:active { transform: scale(0.9); background: rgba(255,255,255,0.2); }
-        .box.active { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent); }
-        #brush-preview { width: 24px; height: 24px; border-radius: 6px; margin-bottom: 4px; border: 1px solid white; }
+        /* iPhone Style Dock - Fluoro Spark */
+        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 10px; background: var(--glass); backdrop-filter: blur(25px); border-radius: 28px; border: 1px solid rgba(0,255,102,0.2); z-index: 1000; }
+        .box { width: 62px; height: 62px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; background: rgba(255,255,255,0.05); transition: 0.2s; border: 1.5px solid transparent; }
+        
+        /* Active Glowing State */
+        .box.active { border-color: var(--fluoro); box-shadow: var(--glow); color: var(--fluoro); background: rgba(0,255,102,0.1); }
+        .btn.active { border: 2px solid var(--fluoro) !important; box-shadow: var(--glow); color: var(--fluoro); }
 
-        /* Panels */
-        .panel { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--glass); backdrop-filter: blur(20px); border-radius: 20px; padding: 15px; display: none; flex-direction: column; gap: 15px; width: 280px; border: 0.5px solid rgba(255,255,255,0.1); z-index: 999; }
+        .panel { position: fixed; bottom: 95px; left: 50%; transform: translateX(-50%); background: var(--glass); backdrop-filter: blur(30px); border-radius: 24px; padding: 18px; display: none; width: 290px; border: 1.5px solid rgba(0,255,102,0.2); z-index: 999; flex-direction: column; gap: 15px; }
         .panel.open { display: flex; }
+        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn { padding: 14px; background: rgba(255,255,255,0.08); border-radius: 14px; color: white; text-align: center; font-size: 11px; font-weight: 900; border: 1px solid transparent; }
         
-        /* Brush Box Elements */
-        .slider-group { display: flex; flex-direction: column; gap: 5px; }
-        .slider-label { color: #aaa; font-size: 10px; letter-spacing: 1px; }
-        input[type=range] { width: 100%; height: 6px; border-radius: 3px; accent-color: var(--accent); }
-        #rainbow-slider { -webkit-appearance: none; height: 6px; border-radius: 3px; background: linear-gradient(to right, #000, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #fff); }
-        #rainbow-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: white; border-radius: 50%; border: 2px solid black; }
+        /* Brush/Matrix Controls */
+        #brush-preview { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #fff; margin-bottom: 4px; box-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        .matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .shade { aspect-ratio: 1/1; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.1); }
+        .shade.selected { border-color: var(--fluoro); box-shadow: var(--glow); }
         
-        .matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-        .shade { aspect-ratio: 1/1; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); }
-        .shade.selected { border: 2px solid white; box-shadow: 0 0 8px white; }
-
-        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .btn { padding: 12px; background: rgba(255,255,255,0.1); border-radius: 10px; color: white; text-align: center; font-size: 12px; font-weight: bold; }
+        .slider-group { display: flex; flex-direction: column; gap: 4px; color: var(--fluoro); font-size: 9px; font-weight: bold; }
+        input[type=range] { -webkit-appearance: none; background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; outline: none; }
+        #rainbow-slider { background: linear-gradient(to right, #000, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #fff); height: 10px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #fff; border: 2px solid var(--fluoro); border-radius: 50%; box-shadow: var(--glow); }
     </style>
 </head>
 <body>
 
 <div id="viewer">
-    <canvas id="btx"></canvas> <canvas id="etx"></canvas> <canvas id="utx"></canvas> </div>
+    <canvas id="btx"></canvas>
+    <canvas id="etx"></canvas>
+    <canvas id="utx"></canvas>
+</div>
 
 <div class="panel" id="menu-panel">
     <div class="tool-grid">
         <div class="btn" onclick="imp()">IMPORT</div>
-        <div class="btn" onclick="exp()">EXPORT</div>
-        <div class="btn" onclick="vault()">VAULT</div>
-        <div class="btn" onclick="burn()">BURN</div>
+        <div class="btn" onclick="exp()">SAVE IMAGE</div>
+        <div class="btn" onclick="vSave()">VAULT SAVE</div>
+        <div class="btn" onclick="vLoad()">VAULT LOAD</div>
+        <div class="btn" onclick="burn()" style="color:#ff4444;">BURN ALL</div>
         <div class="btn" onclick="location.reload()">RELOAD</div>
     </div>
 </div>
 
 <div class="panel" id="tools-panel">
     <div class="tool-grid">
-        <div class="btn" id="btn-bridge" onclick="setTool('bridge')">BRIDGE</div>
-        <div class="btn" id="btn-smooth" onclick="setTool('smooth')">SMOOTH</div>
-        <div class="btn" id="btn-sticker" onclick="sticker()">STICKER</div>
-        <div class="btn" id="btn-cut" onclick="setTool('cut')">CUT</div>
-        <div class="btn" id="btn-copy" onclick="setTool('copy')">COPY</div>
-        <div class="btn" id="btn-paste" onclick="paste()">PASTE</div>
-        <div class="btn" onclick="undo()">UNDO</div>
+        <div class="btn t-btn" id="bridge" onclick="setT('bridge')">BRIDGE</div>
+        <div class="btn t-btn" id="smooth" onclick="setT('smooth')">SMOOTH</div>
+        <div class="btn" onclick="sticker()">STICKER</div>
+        <div class="btn t-btn" id="cut" onclick="setT('cut')">CUT</div>
+        <div class="btn t-btn" id="copy" onclick="setT('copy')">COPY</div>
+        <div class="btn" onclick="paste()">PASTE</div>
+        <div class="btn" onclick="undo()">UNDO LAST 10</div>
     </div>
 </div>
 
 <div class="panel" id="brush-panel">
     <div class="matrix" id="shade-matrix"></div>
-    <div class="slider-group">
-        <span class="slider-label">COLOR</span>
-        <input type="range" id="rainbow-slider" min="0" max="360" value="0" oninput="updateMatrix()">
-    </div>
-    <div class="slider-group">
-        <span class="slider-label">SIZE</span>
-        <input type="range" id="size-slider" min="1" max="100" value="10">
-    </div>
-    <div class="slider-group">
-        <span class="slider-label">TRANSPARENCY</span>
-        <input type="range" id="alpha-slider" min="1" max="100" value="100">
-    </div>
+    <div class="slider-group"><span>COLOR SLIDER</span><input type="range" id="rainbow-slider" min="0" max="360" value="0" oninput="upMat()"></div>
+    <div class="slider-group"><span>BRUSH SIZE</span><input type="range" id="size-s" min="1" max="150" value="20"></div>
+    <div class="slider-group"><span>OPACITY</span><input type="range" id="alpha-s" min="1" max="100" value="100"></div>
 </div>
 
 <div class="dock">
-    <div class="box" onclick="toggleP('menu-panel')">MENU</div>
-    <div class="box" onclick="toggleP('tools-panel')">TOOLS</div>
-    <div class="box" onclick="qsave()" style="background: rgba(0,122,255,0.2);">QSAVE</div>
-    <div class="box" onclick="toggleP('brush-panel')">
-        <div id="brush-preview"></div>
-        BRUSH
-    </div>
-    <div class="box" id="edit-status" onclick="toggleEdit()">PAN</div>
+    <div class="box" id="m-box" onclick="toggleP('menu-panel')">MENU</div>
+    <div class="box" id="t-box" onclick="toggleP('tools-panel')">TOOLS</div>
+    <div class="box" onclick="qsave()">QSAVE</div>
+    <div class="box" id="b-box" onclick="toggleP('brush-panel')"><div id="brush-preview"></div>BRUSH</div>
+    <div class="box" id="edit-box" onclick="toggleEdit()">PAN</div>
 </div>
 
 <script>
     const b = document.getElementById('btx'), bctx = b.getContext('2d');
     const e = document.getElementById('etx'), ectx = e.getContext('2d');
     const u = document.getElementById('utx'), uctx = u.getContext('2d');
-    const view = document.getElementById('viewer');
-    
-    let state = { tool: 'brush', color: '#ff0000', size: 10, alpha: 1, edit: false, 
-                  zoom: 1, x: 0, y: 0, undoStack: [], redoStack: [], clip: null };
-    let startX, startY, isDrawing = false;
+    let cfg = { color: '#00ff66', edit: false, tool: 'brush', history: [] };
+    let isDrawing = false, lx, ly;
 
-    // Canvas Setup
     function init() {
         b.width = e.width = u.width = window.innerWidth * 2;
         b.height = e.height = u.height = window.innerHeight * 2;
-        b.style.width = e.style.width = u.style.width = '100vw';
-        b.style.height = e.style.height = u.style.height = '100vh';
-        updateMatrix();
+        upMat();
     }
 
-    // Mathematical Undo logic (Saves paths, not pixels)
-    function saveStroke(type, path, settings) {
-        state.undoStack.push({ type, path, settings });
-        if(state.undoStack.length > 10) state.undoStack.shift();
-    }
-
-    function undo() {
-        if(state.undoStack.length === 0) return;
-        state.undoStack.pop();
-        redraw();
-    }
-
-    function redraw() {
-        ectx.clearRect(0, 0, e.width, e.height);
-        state.undoStack.forEach(s => {
-            ectx.beginPath();
-            ectx.strokeStyle = s.settings.color;
-            ectx.lineWidth = s.settings.size;
-            ectx.globalAlpha = s.settings.alpha;
-            ectx.lineCap = 'round';
-            ectx.moveTo(s.path[0].x, s.path[0].y);
-            s.path.forEach(p => ectx.lineTo(p.x, p.y));
-            ectx.stroke();
-        });
-    }
-
-    // Toggle Panels
     function toggleP(id) {
-        document.querySelectorAll('.panel').forEach(p => { if(p.id !== id) p.classList.remove('open'); });
-        document.getElementById(id).classList.toggle('open');
+        const p = document.getElementById(id);
+        const active = p.style.display === 'flex';
+        document.querySelectorAll('.panel').forEach(v => v.style.display = 'none');
+        document.querySelectorAll('.box').forEach(v => v.classList.remove('active'));
+        if(!active) {
+            p.style.display = 'flex';
+            document.getElementById(id.split('-')[0]+'-box').classList.add('active');
+        }
     }
 
     function toggleEdit() {
-        state.edit = !state.edit;
-        document.getElementById('edit-status').innerText = state.edit ? 'DRAW' : 'PAN';
+        cfg.edit = !cfg.edit;
+        const eb = document.getElementById('edit-box');
+        eb.innerText = cfg.edit ? 'DRAW' : 'PAN';
+        eb.classList.toggle('active', cfg.edit);
     }
 
-    function setTool(t) {
-        state.tool = t;
-        state.edit = true;
-        document.getElementById('edit-status').innerText = 'DRAW';
-        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-        document.getElementById('btn-'+t)?.classList.add('active');
+    function setT(t) {
+        cfg.tool = t; cfg.edit = true;
+        document.getElementById('edit-box').innerText = 'DRAW';
+        document.getElementById('edit-box').classList.add('active');
+        document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(t).classList.add('active');
     }
 
-    // Color Engine
-    function updateMatrix() {
+    function upMat() {
         const hue = document.getElementById('rainbow-slider').value;
-        const matrix = document.getElementById('shade-matrix');
-        matrix.innerHTML = '';
-        for(let i=0; i<10; i++) {
-            const l = i < 5 ? 30 + (i*10) : 10 + (i*10);
-            const s = i < 5 ? 100 : 50;
-            const c = `hsl(${hue}, ${s}%, ${l}%)`;
-            const d = document.createElement('div');
-            d.className = 'shade';
+        const m = document.getElementById('shade-matrix'); m.innerHTML = '';
+        for(let i=0; i<10; i++){
+            const d = document.createElement('div'); d.className = 'shade';
+            const c = `hsl(${hue}, ${i<5?100:60}%, ${15+(i*8)}%)`;
             d.style.background = c;
             d.onclick = () => {
-                state.color = c;
-                document.getElementById('brush-preview').style.background = c;
+                cfg.color = c; document.getElementById('brush-preview').style.background = c;
                 document.querySelectorAll('.shade').forEach(s => s.classList.remove('selected'));
                 d.classList.add('selected');
             };
-            matrix.appendChild(d);
+            m.appendChild(d);
         }
     }
 
-    // Touch Handling
-    view.addEventListener('touchstart', (e) => {
-        const t = e.touches[0];
-        startX = (t.clientX - state.x) / state.zoom;
-        startY = (t.clientY - state.y) / state.zoom;
-        if(state.edit) {
-            isDrawing = true;
-            currentPath = [{x: startX * 2, y: startY * 2}];
-        }
+    window.addEventListener('touchstart', ev => {
+        if(!cfg.edit || ev.target.closest('.dock') || ev.target.closest('.panel')) return;
+        isDrawing = true;
+        lx = ev.touches[0].clientX * 2; ly = ev.touches[0].clientY * 2;
+        cfg.cPath = [{x:lx, y:ly}];
     });
 
-    let currentPath = [];
-    view.addEventListener('touchmove', (ev) => {
-        if(!state.edit) return; 
-        const t = ev.touches[0];
-        const nx = (t.clientX - state.x) / state.zoom * 2;
-        const ny = (t.clientY - state.y) / state.zoom * 2;
-        
-        if(isDrawing) {
-            ectx.lineCap = 'round';
-            ectx.strokeStyle = state.color;
-            ectx.lineWidth = document.getElementById('size-slider').value;
-            ectx.globalAlpha = document.getElementById('alpha-slider').value / 100;
-            
-            ectx.beginPath();
-            ectx.moveTo(currentPath[currentPath.length-1].x, currentPath[currentPath.length-1].y);
-            ectx.lineTo(nx, ny);
-            ectx.stroke();
-            currentPath.push({x: nx, y: ny});
-            
-            if(state.tool === 'cut' || state.tool === 'copy') {
-                uctx.clearRect(0,0,u.width,u.height);
-                uctx.strokeStyle = '#00faff';
-                uctx.setLineDash([5, 5]);
-                uctx.strokeRect(startX*2, startY*2, nx - startX*2, ny - startY*2);
-            }
-        }
+    window.addEventListener('touchmove', ev => {
+        if(!isDrawing) return;
+        const nx = ev.touches[0].clientX * 2, ny = ev.touches[0].clientY * 2;
+        ectx.strokeStyle = cfg.color; ectx.lineWidth = document.getElementById('size-s').value;
+        ectx.globalAlpha = document.getElementById('alpha-s').value / 100;
+        ectx.lineCap = 'round'; ectx.beginPath(); ectx.moveTo(lx, ly); ectx.lineTo(nx, ny); ectx.stroke();
+        lx = nx; ly = ny; cfg.cPath.push({x:lx, y:ly});
     });
 
-    view.addEventListener('touchend', () => {
+    window.addEventListener('touchend', () => {
         if(isDrawing) {
-            saveStroke(state.tool, currentPath, {color: state.color, size: state.size, alpha: state.alpha});
+            cfg.history.push({ path: cfg.cPath, color: cfg.color, size: document.getElementById('size-s').value, alpha: document.getElementById('alpha-s').value/100 });
+            if(cfg.history.length > 10) cfg.history.shift();
             isDrawing = false;
-            uctx.clearRect(0,0,u.width,u.height);
         }
     });
 
-    // Image Functions
-    function qsave() {
-        bctx.drawImage(e, 0, 0);
-        ectx.clearRect(0, 0, e.width, e.height);
-        state.undoStack = [];
-        alert("Baking Complete. Undo History Reset.");
+    function undo() {
+        cfg.history.pop(); ectx.clearRect(0,0,e.width,e.height);
+        cfg.history.forEach(s => {
+            ectx.strokeStyle = s.color; ectx.lineWidth = s.size; ectx.globalAlpha = s.alpha;
+            ectx.beginPath(); ectx.moveTo(s.path[0].x, s.path[0].y);
+            s.path.forEach(p => ectx.lineTo(p.x, p.y)); ectx.stroke();
+        });
     }
 
-    function sticker() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.onchange = ev => {
-            const reader = new FileReader();
-            reader.onload = a => {
-                const img = new Image();
-                img.onload = () => {
-                    const sw = b.width * 0.8;
-                    const sh = img.height * (sw / img.width);
-                    ectx.drawImage(img, (b.width-sw)/2, (b.height-sh)/2, sw, sh);
-                };
-                img.src = a.target.result;
-            };
-            reader.readAsDataURL(ev.target.files[0]);
-        };
-        input.click();
-    }
-
-    function burn() { if(confirm("Burn Canvas?")) bctx.clearRect(0,0,b.width,b.height); ectx.clearRect(0,0,e.width,e.height); }
+    function qsave() { bctx.drawImage(e,0,0); ectx.clearRect(0,0,e.width,e.height); cfg.history = []; }
+    function imp() { const i = document.createElement('input'); i.type = 'file'; i.onchange = _ => { const r = new FileReader(); r.onload = a => { const img = new Image(); img.onload = () => bctx.drawImage(img,0,0,b.width,b.height); img.src = a.target.result; }; r.readAsDataURL(i.files[0]); }; i.click(); }
+    function exp() { const l = document.createElement('a'); const t = document.createElement('canvas'); t.width = b.width; t.height = b.height; t.getContext('2d').drawImage(b,0,0); t.getContext('2d').drawImage(e,0,0); l.download = 'art.png'; l.href = t.toDataURL(); l.click(); }
+    function burn() { if(confirm("Burn?")) { bctx.clearRect(0,0,b.width,b.height); ectx.clearRect(0,0,e.width,e.height); cfg.history = []; } }
+    function vSave() { localStorage.setItem('v', b.toDataURL()); alert("Vaulted."); }
+    function vLoad() { const d = localStorage.getItem('v'); if(d){ const img = new Image(); img.onload = () => bctx.drawImage(img,0,0,b.width,b.height); img.src = d; } }
 
     init();
 </script>
 </body>
 </html>
-
-
-                            
