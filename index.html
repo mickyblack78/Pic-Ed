@@ -3,180 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retoucher Pro Fluoro</title>
+    <title>Retoucher Pro Fluoro V3</title>
     <style>
-        :root { --bg: #000; --glass: rgba(20, 20, 20, 0.95); --fluoro: #00ff66; --glow: 0 0 20px #00ff66, 0 0 40px rgba(0,255,102,0.3); }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: -apple-system, sans-serif; }
-        #viewer { width: 100vw; height: 100vh; position: relative; overflow: hidden; touch-action: none; background: #080808; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none; }
+        :root { --bg: #000; --glass: rgba(15, 15, 15, 0.98); --fluoro: #00ff66; --glow: 0 0 20px #00ff66; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; touch-action: none; }
+        #viewer { width: 100vw; height: 100vh; position: relative; background: #0a0a0a; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
-        /* iPhone Style Dock - Fluoro Spark */
-        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 10px; background: var(--glass); backdrop-filter: blur(25px); border-radius: 28px; border: 1px solid rgba(0,255,102,0.2); z-index: 1000; }
-        .box { width: 62px; height: 62px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; background: rgba(255,255,255,0.05); transition: 0.2s; border: 1.5px solid transparent; }
-        
-        /* Active Glowing State */
-        .box.active { border-color: var(--fluoro); box-shadow: var(--glow); color: var(--fluoro); background: rgba(0,255,102,0.1); }
-        .btn.active { border: 2px solid var(--fluoro) !important; box-shadow: var(--glow); color: var(--fluoro); }
+        /* Dock & Panels */
+        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 10px; background: var(--glass); border-radius: 28px; border: 1px solid rgba(0,255,102,0.3); z-index: 1000; }
+        .box { width: 60px; height: 60px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 900; cursor: pointer; background: rgba(255,255,255,0.05); border: 1.5px solid transparent; transition: 0.2s; }
+        .box.active { border-color: var(--fluoro); box-shadow: var(--glow); color: var(--fluoro); }
 
-        .panel { position: fixed; bottom: 95px; left: 50%; transform: translateX(-50%); background: var(--glass); backdrop-filter: blur(30px); border-radius: 24px; padding: 18px; display: none; width: 290px; border: 1.5px solid rgba(0,255,102,0.2); z-index: 999; flex-direction: column; gap: 15px; }
-        .panel.open { display: flex; }
-        .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .btn { padding: 14px; background: rgba(255,255,255,0.08); border-radius: 14px; color: white; text-align: center; font-size: 11px; font-weight: 900; border: 1px solid transparent; }
+        .panel { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--glass); border-radius: 24px; padding: 15px; display: none; width: 300px; border: 1px solid var(--fluoro); z-index: 999; }
+        .panel.open { display: flex; flex-direction: column; gap: 12px; }
         
-        /* Brush/Matrix Controls */
-        #brush-preview { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #fff; margin-bottom: 4px; box-shadow: 0 0 5px rgba(255,255,255,0.5); }
-        .matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-        .shade { aspect-ratio: 1/1; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.1); }
-        .shade.selected { border-color: var(--fluoro); box-shadow: var(--glow); }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .btn { padding: 12px; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid transparent; }
+        .btn.active { border-color: var(--fluoro); color: var(--fluoro); box-shadow: var(--glow); }
+
+        /* Thumbnails 1cm x 1cm approx */
+        .thumb { width: 38px; height: 38px; border: 1px solid var(--fluoro); background: #000; object-fit: contain; }
         
-        .slider-group { display: flex; flex-direction: column; gap: 4px; color: var(--fluoro); font-size: 9px; font-weight: bold; }
-        input[type=range] { -webkit-appearance: none; background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; outline: none; }
-        #rainbow-slider { background: linear-gradient(to right, #000, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #fff); height: 10px; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #fff; border: 2px solid var(--fluoro); border-radius: 50%; box-shadow: var(--glow); }
+        /* Select Menu 12 Styles */
+        .style-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .style-item { aspect-ratio: 1; background: #222; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 8px; border: 1px solid #444; }
+
+        #brush-preview { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; }
+        input[type=range] { width: 100%; accent-color: var(--fluoro); }
     </style>
 </head>
 <body>
-
-<div id="viewer">
-    <canvas id="btx"></canvas>
-    <canvas id="etx"></canvas>
-    <canvas id="utx"></canvas>
-</div>
-
-<div class="panel" id="menu-panel">
-    <div class="tool-grid">
-        <div class="btn" onclick="imp()">IMPORT</div>
-        <div class="btn" onclick="exp()">SAVE IMAGE</div>
-        <div class="btn" onclick="vSave()">VAULT SAVE</div>
-        <div class="btn" onclick="vLoad()">VAULT LOAD</div>
-        <div class="btn" onclick="burn()" style="color:#ff4444;">BURN ALL</div>
-        <div class="btn" onclick="location.reload()">RELOAD</div>
-    </div>
-</div>
-
-<div class="panel" id="tools-panel">
-    <div class="tool-grid">
-        <div class="btn t-btn" id="bridge" onclick="setT('bridge')">BRIDGE</div>
-        <div class="btn t-btn" id="smooth" onclick="setT('smooth')">SMOOTH</div>
-        <div class="btn" onclick="sticker()">STICKER</div>
-        <div class="btn t-btn" id="cut" onclick="setT('cut')">CUT</div>
-        <div class="btn t-btn" id="copy" onclick="setT('copy')">COPY</div>
-        <div class="btn" onclick="paste()">PASTE</div>
-        <div class="btn" onclick="undo()">UNDO LAST 10</div>
-    </div>
-</div>
-
-<div class="panel" id="brush-panel">
-    <div class="matrix" id="shade-matrix"></div>
-    <div class="slider-group"><span>COLOR SLIDER</span><input type="range" id="rainbow-slider" min="0" max="360" value="0" oninput="upMat()"></div>
-    <div class="slider-group"><span>BRUSH SIZE</span><input type="range" id="size-s" min="1" max="150" value="20"></div>
-    <div class="slider-group"><span>OPACITY</span><input type="range" id="alpha-s" min="1" max="100" value="100"></div>
-</div>
-
-<div class="dock">
-    <div class="box" id="m-box" onclick="toggleP('menu-panel')">MENU</div>
-    <div class="box" id="t-box" onclick="toggleP('tools-panel')">TOOLS</div>
-    <div class="box" onclick="qsave()">QSAVE</div>
-    <div class="box" id="b-box" onclick="toggleP('brush-panel')"><div id="brush-preview"></div>BRUSH</div>
-    <div class="box" id="edit-box" onclick="toggleEdit()">PAN</div>
-</div>
-
-<script>
-    const b = document.getElementById('btx'), bctx = b.getContext('2d');
-    const e = document.getElementById('etx'), ectx = e.getContext('2d');
-    const u = document.getElementById('utx'), uctx = u.getContext('2d');
-    let cfg = { color: '#00ff66', edit: false, tool: 'brush', history: [] };
-    let isDrawing = false, lx, ly;
-
-    function init() {
-        b.width = e.width = u.width = window.innerWidth * 2;
-        b.height = e.height = u.height = window.innerHeight * 2;
-        upMat();
-    }
-
-    function toggleP(id) {
-        const p = document.getElementById(id);
-        const active = p.style.display === 'flex';
-        document.querySelectorAll('.panel').forEach(v => v.style.display = 'none');
-        document.querySelectorAll('.box').forEach(v => v.classList.remove('active'));
-        if(!active) {
-            p.style.display = 'flex';
-            document.getElementById(id.split('-')[0]+'-box').classList.add('active');
-        }
-    }
-
-    function toggleEdit() {
-        cfg.edit = !cfg.edit;
-        const eb = document.getElementById('edit-box');
-        eb.innerText = cfg.edit ? 'DRAW' : 'PAN';
-        eb.classList.toggle('active', cfg.edit);
-    }
-
-    function setT(t) {
-        cfg.tool = t; cfg.edit = true;
-        document.getElementById('edit-box').innerText = 'DRAW';
-        document.getElementById('edit-box').classList.add('active');
-        document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(t).classList.add('active');
-    }
-
-    function upMat() {
-        const hue = document.getElementById('rainbow-slider').value;
-        const m = document.getElementById('shade-matrix'); m.innerHTML = '';
-        for(let i=0; i<10; i++){
-            const d = document.createElement('div'); d.className = 'shade';
-            const c = `hsl(${hue}, ${i<5?100:60}%, ${15+(i*8)}%)`;
-            d.style.background = c;
-            d.onclick = () => {
-                cfg.color = c; document.getElementById('brush-preview').style.background = c;
-                document.querySelectorAll('.shade').forEach(s => s.classList.remove('selected'));
-                d.classList.add('selected');
-            };
-            m.appendChild(d);
-        }
-    }
-
-    window.addEventListener('touchstart', ev => {
-        if(!cfg.edit || ev.target.closest('.dock') || ev.target.closest('.panel')) return;
-        isDrawing = true;
-        lx = ev.touches[0].clientX * 2; ly = ev.touches[0].clientY * 2;
-        cfg.cPath = [{x:lx, y:ly}];
-    });
-
-    window.addEventListener('touchmove', ev => {
-        if(!isDrawing) return;
-        const nx = ev.touches[0].clientX * 2, ny = ev.touches[0].clientY * 2;
-        ectx.strokeStyle = cfg.color; ectx.lineWidth = document.getElementById('size-s').value;
-        ectx.globalAlpha = document.getElementById('alpha-s').value / 100;
-        ectx.lineCap = 'round'; ectx.beginPath(); ectx.moveTo(lx, ly); ectx.lineTo(nx, ny); ectx.stroke();
-        lx = nx; ly = ny; cfg.cPath.push({x:lx, y:ly});
-    });
-
-    window.addEventListener('touchend', () => {
-        if(isDrawing) {
-            cfg.history.push({ path: cfg.cPath, color: cfg.color, size: document.getElementById('size-s').value, alpha: document.getElementById('alpha-s').value/100 });
-            if(cfg.history.length > 10) cfg.history.shift();
-            isDrawing = false;
-        }
-    });
-
-    function undo() {
-        cfg.history.pop(); ectx.clearRect(0,0,e.width,e.height);
-        cfg.history.forEach(s => {
-            ectx.strokeStyle = s.color; ectx.lineWidth = s.size; ectx.globalAlpha = s.alpha;
-            ectx.beginPath(); ectx.moveTo(s.path[0].x, s.path[0].y);
-            s.path.forEach(p => ectx.lineTo(p.x, p.y)); ectx.stroke();
-        });
-    }
-
-    function qsave() { bctx.drawImage(e,0,0); ectx.clearRect(0,0,e.width,e.height); cfg.history = []; }
-    function imp() { const i = document.createElement('input'); i.type = 'file'; i.onchange = _ => { const r = new FileReader(); r.onload = a => { const img = new Image(); img.onload = () => bctx.drawImage(img,0,0,b.width,b.height); img.src = a.target.result; }; r.readAsDataURL(i.files[0]); }; i.click(); }
-    function exp() { const l = document.createElement('a'); const t = document.createElement('canvas'); t.width = b.width; t.height = b.height; t.getContext('2d').drawImage(b,0,0); t.getContext('2d').drawImage(e,0,0); l.download = 'art.png'; l.href = t.toDataURL(); l.click(); }
-    function burn() { if(confirm("Burn?")) { bctx.clearRect(0,0,b.width,b.height); ectx.clearRect(0,0,e.width,e.height); cfg.history = []; } }
-    function vSave() { localStorage.setItem('v', b.toDataURL()); alert("Vaulted."); }
-    function vLoad() { const d = localStorage.getItem('v'); if(d){ const img = new Image(); img.onload = () => bctx.drawImage(img,0,0,b.width,b.height); img.src = d; } }
-
-    init();
-</script>
-</body>
-</html>
+    
