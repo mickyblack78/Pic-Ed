@@ -3,166 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Waterfall Smudge QSAVE</title>
+    <title>Retoucher Pro Fluoro Final</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #222; font-family: sans-serif; }
-        #controls { position: absolute; bottom: 10px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 10; }
-        .row { display: flex; gap: 5px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 8px; }
-        button { padding: 10px; color: white; background: #444; border: 1px solid #666; border-radius: 4px; cursor: pointer; }
-        button.active { background: #007bff; }
-        input[type="range"] { width: 150px; }
-        #canvas-container { position: relative; width: 100vw; height: 100vh; }
-        canvas { position: absolute; top: 0; left: 0; touch-action: none; }
+        :root { --bg: #000; --glass: rgba(15, 15, 15, 0.98); --fluoro: #00ff66; --glow: 0 0 20px #00ff66; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; touch-action: none; }
+        
+        #viewer { width: 100vw; height: 100vh; position: relative; background: #0a0a0a; z-index: 1; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; }
+        
+        .dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; padding: 10px; background: var(--glass); border-radius: 28px; border: 1px solid rgba(0,255,102,0.3); z-index: 1000; }
+        .box { width: 60px; height: 60px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-size: 9px; font-weight: 900; cursor: pointer; background: rgba(255,255,255,0.05); border: 1.5px solid transparent; transition: 0.2s; }
+        .box.active { border-color: var(--fluoro); box-shadow: var(--glow); color: var(--fluoro); }
+
+        .panel { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: var(--glass); border-radius: 24px; padding: 15px; display: none; width: 300px; border: 1px solid var(--fluoro); z-index: 999; }
+        .panel.open { display: flex; flex-direction: column; gap: 12px; }
+        
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .btn { padding: 12px; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; text-align: center; font-size: 10px; font-weight: bold; border: 1px solid transparent; cursor: pointer; }
+        .btn.active { border-color: var(--fluoro); color: var(--fluoro); box-shadow: var(--glow); }
+
+        .thumb { width: 38px; height: 38px; border: 1px solid var(--fluoro); background: #000; object-fit: contain; pointer-events: auto; }
+        
+        .style-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .style-item { aspect-ratio: 1; background: #222; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 8px; border: 1px solid #444; color: white; }
+
+        #brush-preview { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; background: var(--fluoro); }
+        input[type=range] { width: 100%; accent-color: var(--fluoro); cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div id="canvas-container">
-    <canvas id="bgCanvas"></canvas>
-    <canvas id="drawCanvas"></canvas>
+<div id="viewer">
+    <canvas id="mainLayer"></canvas>
+    <canvas id="drawLayer"></canvas>
 </div>
 
-<div id="controls">
-    <div class="row">
-        <button onclick="switchSlot(1)" id="s1">Slot 1</button>
-        <button onclick="switchSlot(2)" id="s2">Slot 2</button>
-        <button onclick="switchSlot(3)" id="s3">Slot 3</button>
+<div class="panel" id="menu-panel">
+    <div class="grid-3">
+        <div class="btn" onclick="imp()">IMPORT</div>
+        <div class="btn" onclick="exp()">SAVE IMG</div>
+        <div class="btn" onclick="vAction('save', 0)">VAULT S1</div>
+        <div class="btn" onclick="vAction('save', 1)">VAULT S2</div>
+        <div class="btn" onclick="vAction('save', 2)">VAULT S3</div>
     </div>
-    <div class="row">
-        <button onclick="triggerImport()">Import</button>
-        <button onclick="setMode('draw')" id="drawBtn" class="active">Draw</button>
-        <button onclick="setMode('smudge')" id="smudgeBtn">Smudge</button>
-        <button onclick="saveCurrentSlot()" style="background: #28a745;">QSAVE</button>
-    </div>
-    <div class="row">
-        <input type="range" id="sizeBar" min="1" max="50" value="10">
+    <div style="display:flex; justify-content:center; gap:10px; margin-top:10px;">
+        <img id="v-thumb-0" class="thumb" onclick="vAction('load', 0)">
+        <img id="v-thumb-1" class="thumb" onclick="vAction('load', 1)">
+        <img id="v-thumb-2" class="thumb" onclick="vAction('load', 2)">
     </div>
 </div>
 
-<input type="file" id="fileInput" hidden accept="image/*">
+<div class="panel" id="tools-panel">
+    <div class="grid-3">
+        <div class="btn t-btn" id="smooth" onclick="toggleT('smooth')">SMUDGE</div>
+        <div class="btn t-btn" id="bridge" onclick="toggleT('bridge')">BRIDGE</div>
+        <div class="btn t-btn" id="text" onclick="toggleT('text')">TEXT</div>
+        <div class="btn t-btn" id="picker" onclick="toggleT('picker')">PICKER</div>
+        <div class="btn" onclick="openSelect()">SELECT</div>
+        <div class="btn" onclick="handleSticker()">STICKER</div>
+        <div class="btn" onclick="handlePaste()">PASTE</div>
+        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
+        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
+        <div class="btn" onclick="undo()" style="grid-column: span 3;">UNDO (LAST 5)</div>
+    </div>
+</div>
+
+<div class="panel" id="brush-panel">
+    <div style="display:flex; align-items:center; gap:15px;">
+        <div id="brush-preview"></div>
+        <div style="flex-grow:1;">
+            <input type="range" id="hue-s" min="0" max="360" value="150" oninput="upClr()">
+            <input type="range" id="size-s" min="1" max="100" value="20" oninput="upClr()">
+            <input type="range" id="alpha-s" min="1" max="100" value="100" oninput="upClr()">
+        </div>
+    </div>
+</div>
+
+<div class="panel" id="select-panel">
+    <div class="style-grid" id="style-grid"></div>
+</div>
+
+<div class="dock">
+    <div class="box" id="menu-box" onclick="toggleP('menu-panel')">MENU</div>
+    <div class="box" id="tools-box" onclick="toggleP('tools-panel')">TOOLS</div>
+    <div class="box" id="q-box">
+        <img id="q-thumb" class="thumb" onclick="vAction('load', 'q')">
+        <span onclick="qSave()">QSAVE</span>
+    </div>
+    <div class="box" id="brush-box" onclick="toggleP('brush-panel')">BRUSH</div>
+    <div class="box" id="edit-box" onclick="toggleEdit()">EDIT</div>
+</div>
 
 <script>
-    const bgCanvas = document.getElementById('bgCanvas');
-    const drawCanvas = document.getElementById('drawCanvas');
-    const bgCtx = bgCanvas.getContext('2d');
-    const drawCtx = drawCanvas.getContext('2d');
-    const sizeBar = document.getElementById('sizeBar');
-    const fileInput = document.getElementById('fileInput');
+    const m = document.getElementById('mainLayer'), mctx = m.getContext('2d');
+    const d = document.getElementById('drawLayer'), dctx = d.getContext('2d');
+    let cfg = { color: '#00ff66', size: 20, alpha: 1, tool: null, edit: false, history: [], clip: null };
+    let isDrawing = false, lx, ly, bStartX, bStartY, db;
 
-    let currentSlot = 1;
-    let mode = 'draw';
-    let isDrawing = false;
-    let db;
-
-    // --- DB SETUP (The Offline Filing Cabinet) ---
-    const request = indexedDB.open("WaterfallApp", 1);
-    request.onupgradeneeded = e => {
-        db = e.target.result;
-        db.createObjectStore("slots", { keyPath: "id" });
-    };
-    request.onsuccess = e => {
-        db = e.target.result;
-        switchSlot(1);
+    // --- DISK STORAGE (IndexedDB) ---
+    const request = indexedDB.open("WaterfallPro_DB", 1);
+    request.onupgradeneeded = e => { e.target.result.createObjectStore("slots"); };
+    request.onsuccess = e => { 
+        db = e.target.result; 
+        loadVaultThumbs(); 
     };
 
-    // --- CANVAS RESIZE ---
-    function resize() {
-        bgCanvas.width = drawCanvas.width = window.innerWidth;
-        bgCanvas.height = drawCanvas.height = window.innerHeight;
-    }
-    window.onresize = resize;
-    resize();
-
-    // --- CORE LOGIC ---
-    function setMode(m) {
-        mode = m;
-        document.getElementById('drawBtn').classList.toggle('active', m === 'draw');
-        document.getElementById('smudgeBtn').classList.toggle('active', m === 'smudge');
+    function init() {
+        m.width = d.width = window.innerWidth * 2;
+        m.height = d.height = window.innerHeight * 2;
+        mctx.lineCap = dctx.lineCap = 'round';
+        // Style Grid Init
+        const sg = document.getElementById('style-grid');
+        for(let i=1; i<=12; i++) {
+            const s = document.createElement('div'); s.className = 'style-item';
+            s.innerText = 'STYLE ' + i;
+            s.onclick = (e) => { e.stopPropagation(); document.getElementById('select-panel').classList.remove('open'); };
+            sg.appendChild(s);
+        }
+        upClr();
     }
 
-    function triggerImport() { fileInput.click(); }
+    function upClr() {
+        const h = document.getElementById('hue-s').value;
+        const a = document.getElementById('alpha-s').value / 100;
+        cfg.color = `hsla(${h}, 100%, 50%, ${a})`;
+        cfg.size = document.getElementById('size-s').value;
+        document.getElementById('brush-preview').style.backgroundColor = cfg.color;
+        document.getElementById('brush-box').style.backgroundColor = cfg.color;
+    }
 
-    fileInput.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = event => {
-            const img = new Image();
-            img.onload = () => {
-                bgCtx.clearRect(0,0,bgCanvas.width, bgCanvas.height);
-                bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    };
+    function toggleP(id) {
+        const p = document.getElementById(id);
+        const isOpen = p.classList.contains('open');
+        document.querySelectorAll('.panel').forEach(x => x.classList.remove('open'));
+        if(!isOpen) p.classList.add('open');
+    }
 
-    // --- DRAW & SMUDGE ENGINE ---
-    function handleStart(e) { isDrawing = true; draw(e); }
-    function handleEnd() { isDrawing = false; drawCtx.beginPath(); }
+    function toggleT(t) {
+        cfg.tool = (cfg.tool === t) ? null : t;
+        cfg.edit = false;
+        document.getElementById('edit-box').classList.remove('active');
+        document.querySelectorAll('.t-btn').forEach(b => b.classList.toggle('active', b.id === cfg.tool));
+    }
 
-    function draw(e) {
-        if (!isDrawing) return;
-        const x = e.touches ? e.touches[0].clientX : e.clientX;
-        const y = e.touches ? e.touches[0].clientY : e.clientY;
-        const size = sizeBar.value;
+    function toggleEdit() {
+        cfg.edit = !cfg.edit;
+        if(cfg.edit) { cfg.tool = null; document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active')); }
+        document.getElementById('edit-box').classList.toggle('active', cfg.edit);
+    }
 
-        if (mode === 'draw') {
-            drawCtx.lineWidth = size;
-            drawCtx.lineCap = 'round';
-            drawCtx.strokeStyle = 'white';
-            drawCtx.lineTo(x, y);
-            drawCtx.stroke();
-            drawCtx.beginPath();
-            drawCtx.moveTo(x, y);
+    // --- ENGINE: DRAW, BRIDGE, SMUDGE ---
+    window.addEventListener('touchstart', e => {
+        if(e.target.closest('.dock') || e.target.closest('.panel')) return;
+        const rect = d.getBoundingClientRect();
+        const tx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
+        const ty = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
+        
+        if(cfg.tool === 'picker') {
+            const data = mctx.getImageData(tx, ty, 1, 1).data;
+            if(data[3]>0) { cfg.color = `rgba(${data[0]},${data[1]},${data[2]},1)`; upClr(); }
+            toggleT('picker'); return;
+        }
+
+        isDrawing = true; lx = tx; ly = ty;
+        if(cfg.tool === 'bridge') { bStartX = lx; bStartY = ly; }
+    });
+
+    window.addEventListener('touchmove', e => {
+        if(!isDrawing) return;
+        const rect = d.getBoundingClientRect();
+        const nx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
+        const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
+        
+        if(cfg.tool === 'smooth') {
+            // SOFT SMUDGE: Grabs Waterfall pixels and blends them over drawing
+            const s = cfg.size;
+            const imgData = mctx.getImageData(nx-s/2, ny-s/2, s, s);
+            dctx.globalAlpha = 0.4;
+            dctx.putImageData(imgData, nx-s/2, ny-s/2);
+            dctx.globalAlpha = 1.0;
+        } else if(cfg.tool === 'bridge') {
+            // BRIDGE: Dynamic preview
+            dctx.clearRect(0,0,d.width,d.height);
+            dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size/2;
+            dctx.beginPath(); dctx.moveTo(bStartX, bStartY); dctx.lineTo(nx, ny); dctx.stroke();
+        } else if(cfg.edit || !cfg.tool) {
+            dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size;
+            dctx.beginPath(); dctx.moveTo(lx, ly); dctx.lineTo(nx, ny); dctx.stroke();
+        }
+        lx = nx; ly = ny;
+    });
+
+    window.addEventListener('touchend', () => {
+        if(!isDrawing) return;
+        isDrawing = false;
+        if(cfg.tool === 'text') {
+            const txt = prompt("Enter Text:");
+            if(txt) { dctx.font = `${cfg.size*2}px sans-serif`; dctx.fillStyle = cfg.color; dctx.fillText(txt, lx, ly); }
+            toggleT('text');
+        }
+        // Undo History
+        if(cfg.history.length >= 5) cfg.history.shift();
+        cfg.history.push(dctx.getImageData(0,0,d.width,d.height));
+    });
+
+    // --- STORAGE: QSAVE & VAULT ---
+    function qSave() {
+        mctx.drawImage(d, 0, 0); // Merge to Background
+        const data = m.toDataURL('image/jpeg', 0.7);
+        db.transaction("slots", "readwrite").objectStore("slots").put(data, 'q');
+        document.getElementById('q-thumb').src = data;
+        dctx.clearRect(0, 0, d.width, d.height); // Clear for next 30s
+    }
+
+    function vAction(act, slot) {
+        const key = slot === 'q' ? 'q' : `s${slot}`;
+        if(act === 'save') {
+            const data = m.toDataURL('image/jpeg', 0.7);
+            db.transaction("slots", "readwrite").objectStore("slots").put(data, key);
+            if(slot !== 'q') document.getElementById(`v-thumb-${slot}`).src = data;
         } else {
-            // Smudge: Grabs pixels from background and blurs them onto drawing layer
-            const imgData = bgCtx.getImageData(x - size/2, y - size/2, size, size);
-            drawCtx.globalAlpha = 0.4;
-            drawCtx.putImageData(imgData, x - size/2, y - size/2);
-            drawCtx.globalAlpha = 1.0;
+            const req = db.transaction("slots", "readonly").objectStore("slots").get(key);
+            req.onsuccess = () => {
+                if(!req.result) return;
+                const img = new Image();
+                img.onload = () => { mctx.clearRect(0,0,m.width,m.height); mctx.drawImage(img,0,0); };
+                img.src = req.result;
+            };
         }
     }
 
-    drawCanvas.addEventListener('mousedown', handleStart);
-    drawCanvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', handleEnd);
-    drawCanvas.addEventListener('touchstart', handleStart);
-    drawCanvas.addEventListener('touchmove', draw);
-    window.addEventListener('touchend', handleEnd);
-
-    // --- STORAGE ENGINE (QSAVE & LOAD) ---
-    function saveCurrentSlot() {
-        const data = {
-            id: currentSlot,
-            bg: bgCanvas.toDataURL('image/jpeg', 0.8), // Compressed for speed
-            fg: drawCanvas.toDataURL('image/png')
-        };
-        db.transaction("slots", "readwrite").objectStore("slots").put(data);
-        alert("QSAVE Slot " + currentSlot + " Success");
+    function loadVaultThumbs() {
+        ['q', 's0', 's1', 's2'].forEach(k => {
+            const req = db.transaction("slots", "readonly").objectStore("slots").get(k);
+            req.onsuccess = () => {
+                if(!req.result) return;
+                const id = k === 'q' ? 'q-thumb' : `v-thumb-${k.substring(1)}`;
+                document.getElementById(id).src = req.result;
+            };
+        });
     }
 
-    function switchSlot(id) {
-        currentSlot = id;
-        [1,2,3].forEach(n => document.getElementById('s'+n).classList.toggle('active', n === id));
-        
-        const tx = db.transaction("slots", "readonly");
-        const store = tx.objectStore("slots");
-        const req = store.get(id);
-        
-        req.onsuccess = () => {
-            bgCtx.clearRect(0,0,bgCanvas.width, bgCanvas.height);
-            drawCtx.clearRect(0,0,drawCanvas.width, drawCanvas.height);
-            if (req.result) {
-                const bgImg = new Image();
-                bgImg.onload = () => bgCtx.drawImage(bgImg, 0, 0);
-                bgImg.src = req.result.bg;
-
-                const fgImg = new Image();
-                fgImg.onload = () => drawCtx.drawImage(fgImg, 0, 0);
-                fgImg.src = req.result.fg;
-            }
-        };
+    // --- UTILS ---
+    function imp() {
+        const i = document.createElement('input'); i.type = 'file';
+        i.onchange = e => {
+            const r = new FileReader(); r.onload = ev => {
+                const img = new Image(); img.onload = () => {
+                    const sc = (m.width*0.8)/img.width;
+                    mctx.drawImage(img, (m.width-img.width*sc)/2, (m.height-img.height*sc)/2, img.width*sc, img.height*sc);
+                }; img.src = ev.target.result;
+            }; r.readAsDataURL(e.target.files[0]);
+        }; i.click();
     }
+    function handleSticker() { imp(); } // Placeholder for sticker logic
+    function undo() { if(cfg.history.length) { cfg.history.pop(); dctx.clearRect(0,0,d.width,d.height); if(cfg.history.length) dctx.putImageData(cfg.history[cfg.history.length-1],0,0); } }
+    function exp() { mctx.drawImage(d,0,0); const l = document.createElement('a'); l.download = 'art.jpg'; l.href = m.toDataURL('image/jpeg', 0.9); l.click(); }
+    function openSelect() { toggleP('select-panel'); }
+    function handlePaste() { if(cfg.clip) dctx.putImageData(cfg.clip, 50, 50); }
+
+    window.onload = init;
 </script>
 </body>
 </html>
