@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Retoucher Pro Fluoro Final</title>
+    <title>Retoucher Pro Fluoro Final - Architect Edition</title>
     <style>
         :root { --bg: #000; --glass: rgba(15, 15, 15, 0.98); --fluoro: #00ff66; --glow: 0 0 20px #00ff66; }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: sans-serif; touch-action: none; }
@@ -97,22 +97,19 @@
 <script>
     const m = document.getElementById('mainLayer'), mctx = m.getContext('2d');
     const d = document.getElementById('drawLayer'), dctx = d.getContext('2d');
-    let cfg = { color: '#00ff66', size: 20, alpha: 1, tool: null, edit: false, history: [], clip: null };
+    let cfg = { color: '#00ff66', size: 20, alpha: 1, tool: null, edit: false, history: [], clip: null, stateLog: [] };
     let isDrawing = false, lx, ly, bStartX, bStartY, db;
 
     // --- DISK STORAGE (IndexedDB) ---
     const request = indexedDB.open("WaterfallPro_DB", 1);
     request.onupgradeneeded = e => { e.target.result.createObjectStore("slots"); };
-    request.onsuccess = e => { 
-        db = e.target.result; 
-        loadVaultThumbs(); 
-    };
+    request.onsuccess = e => { db = e.target.result; loadVaultThumbs(); };
 
     function init() {
         m.width = d.width = window.innerWidth * 2;
         m.height = d.height = window.innerHeight * 2;
         mctx.lineCap = dctx.lineCap = 'round';
-        // Style Grid Init
+        dctx.lineCap = dctx.lineJoin = 'round';
         const sg = document.getElementById('style-grid');
         for(let i=1; i<=12; i++) {
             const s = document.createElement('div'); s.className = 'style-item';
@@ -152,7 +149,7 @@
         document.getElementById('edit-box').classList.toggle('active', cfg.edit);
     }
 
-    // --- ENGINE: DRAW, BRIDGE, SMUDGE ---
+    // --- REFINED ENGINE ---
     window.addEventListener('touchstart', e => {
         if(e.target.closest('.dock') || e.target.closest('.panel')) return;
         const rect = d.getBoundingClientRect();
@@ -167,6 +164,9 @@
 
         isDrawing = true; lx = tx; ly = ty;
         if(cfg.tool === 'bridge') { bStartX = lx; bStartY = ly; }
+        
+        // Log start of move for JSON
+        cfg.stateLog.push({t: cfg.tool, x: tx, y: ty, time: Date.now()});
     });
 
     window.addEventListener('touchmove', e => {
@@ -176,18 +176,21 @@
         const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
         
         if(cfg.tool === 'smooth') {
-            // SOFT SMUDGE: Grabs Waterfall pixels and blends them over drawing
+            // FIX: Smooth Flow Smudge
             const s = cfg.size;
-            const imgData = mctx.getImageData(nx-s/2, ny-s/2, s, s);
-            dctx.globalAlpha = 0.4;
-            dctx.putImageData(imgData, nx-s/2, ny-s/2);
-            dctx.globalAlpha = 1.0;
+            dctx.save();
+            dctx.globalCompositeOperation = 'source-over';
+            dctx.drawImage(m, nx - s, ny - s, s*2, s*2, nx - s, ny - s, s*2, s*2);
+            dctx.globalAlpha = 0.1; // Smear effect
+            dctx.drawImage(d, nx - s + 2, ny - s + 2, s*2, s*2, nx - s, ny - s, s*2, s*2);
+            dctx.restore();
         } else if(cfg.tool === 'bridge') {
-            // BRIDGE: Dynamic preview
+            // FIX: Visual Bridge Preview
             dctx.clearRect(0,0,d.width,d.height);
+            if(cfg.history.length) dctx.putImageData(cfg.history[cfg.history.length-1],0,0);
             dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size/2;
             dctx.beginPath(); dctx.moveTo(bStartX, bStartY); dctx.lineTo(nx, ny); dctx.stroke();
-        } else if(cfg.edit || !cfg.tool) {
+        } else {
             dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size;
             dctx.beginPath(); dctx.moveTo(lx, ly); dctx.lineTo(nx, ny); dctx.stroke();
         }
@@ -197,23 +200,37 @@
     window.addEventListener('touchend', () => {
         if(!isDrawing) return;
         isDrawing = false;
+        
+        if(cfg.tool === 'bridge') {
+            // Commit bridge to current history
+            dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size/2;
+            dctx.beginPath(); dctx.moveTo(bStartX, bStartY); dctx.lineTo(lx, ly); dctx.stroke();
+        }
+        
         if(cfg.tool === 'text') {
             const txt = prompt("Enter Text:");
             if(txt) { dctx.font = `${cfg.size*2}px sans-serif`; dctx.fillStyle = cfg.color; dctx.fillText(txt, lx, ly); }
             toggleT('text');
         }
-        // Undo History
+
         if(cfg.history.length >= 5) cfg.history.shift();
         cfg.history.push(dctx.getImageData(0,0,d.width,d.height));
     });
 
-    // --- STORAGE: QSAVE & VAULT ---
+    // --- QSAVE METADATA INTEGRATION ---
     function qSave() {
-        mctx.drawImage(d, 0, 0); // Merge to Background
+        mctx.drawImage(d, 0, 0); 
         const data = m.toDataURL('image/jpeg', 0.7);
         db.transaction("slots", "readwrite").objectStore("slots").put(data, 'q');
         document.getElementById('q-thumb').src = data;
-        dctx.clearRect(0, 0, d.width, d.height); // Clear for next 30s
+        
+        // Export Metadata for the Architect/PC
+        const meta = JSON.stringify({state: cfg.stateLog, timestamp: Date.now()});
+        localStorage.setItem('last_q_meta', meta);
+        console.log("Metadata HUD: State Captured.");
+        
+        dctx.clearRect(0, 0, d.width, d.height);
+        cfg.stateLog = []; // Reset for next brick
     }
 
     function vAction(act, slot) {
@@ -244,7 +261,6 @@
         });
     }
 
-    // --- UTILS ---
     function imp() {
         const i = document.createElement('input'); i.type = 'file';
         i.onchange = e => {
@@ -256,8 +272,8 @@
             }; r.readAsDataURL(e.target.files[0]);
         }; i.click();
     }
-    function handleSticker() { imp(); } // Placeholder for sticker logic
-    function undo() { if(cfg.history.length) { cfg.history.pop(); dctx.clearRect(0,0,d.width,d.height); if(cfg.history.length) dctx.putImageData(cfg.history[cfg.history.length-1],0,0); } }
+    function handleSticker() { imp(); }
+    function undo() { if(cfg.history.length > 1) { cfg.history.pop(); dctx.clearRect(0,0,d.width,d.height); dctx.putImageData(cfg.history[cfg.history.length-1],0,0); } else { dctx.clearRect(0,0,d.width,d.height); cfg.history = []; } }
     function exp() { mctx.drawImage(d,0,0); const l = document.createElement('a'); l.download = 'art.jpg'; l.href = m.toDataURL('image/jpeg', 0.9); l.click(); }
     function openSelect() { toggleP('select-panel'); }
     function handlePaste() { if(cfg.clip) dctx.putImageData(cfg.clip, 50, 50); }
@@ -266,3 +282,5 @@
 </script>
 </body>
 </html>
+
+
