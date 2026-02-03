@@ -190,7 +190,7 @@
             if(cfg.history.length) dctx.putImageData(cfg.history[cfg.history.length-1],0,0);
             dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size/2;
             dctx.beginPath(); dctx.moveTo(bStartX, bStartY); dctx.lineTo(nx, ny); dctx.stroke();
-        } else {
+        } else if(!cfg.tool && !cfg.edit) {
             dctx.strokeStyle = cfg.color; dctx.lineWidth = cfg.size;
             dctx.beginPath(); dctx.moveTo(lx, ly); dctx.lineTo(nx, ny); dctx.stroke();
         }
