@@ -1,9 +1,9 @@
-     <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Retoucher Pro Fluoro - Architect Edition</title>
+    <title>Retoucher Pro Fluoro - Architect Edition Final</title>
     <style>
         :root {
             --bg: #000;
@@ -17,6 +17,8 @@
             overflow: auto;
             background: var(--bg);
             font-family: sans-serif;
+            width: 100vw;
+            height: 100vh;
         }
 
         #viewer {
@@ -36,18 +38,20 @@
             z-index: 2;
         }
 
+        /* Fixed Centering for Zoom Stability */
         .dock {
             position: fixed;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: calc(50% - 170px); 
             display: flex;
             gap: 8px;
             padding: 10px;
             background: var(--glass);
             border-radius: 28px;
             border: 1px solid rgba(0, 255, 102, 0.3);
-            z-index: 1000;
+            z-index: 10000;
+            width: 320px;
+            justify-content: center;
         }
 
         .box {
@@ -75,16 +79,15 @@
 
         .panel {
             position: fixed;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
+            bottom: 110px;
+            left: calc(50% - 175px);
             background: var(--glass);
             border-radius: 24px;
             padding: 15px;
             display: none;
             width: 320px;
             border: 1px solid var(--fluoro);
-            z-index: 999;
+            z-index: 9999;
         }
 
         .panel.open {
@@ -179,7 +182,6 @@
 
         input[type=range] {
             accent-color: var(--fluoro);
-            cursor: pointer;
         }
     </style>
 </head>
@@ -199,18 +201,15 @@
     </div>
     <div style="display:flex; justify-content:center; gap:15px; margin-top:10px;">
         <div onclick="vaultClick(0)">
-            <img id="v-thumb-0" class="thumb">
-            <br>
+            <img id="v-thumb-0" class="thumb"><br>
             <center style="color:white;font-size:8px">V1</center>
         </div>
         <div onclick="vaultClick(1)">
-            <img id="v-thumb-1" class="thumb">
-            <br>
+            <img id="v-thumb-1" class="thumb"><br>
             <center style="color:white;font-size:8px">V2</center>
         </div>
         <div onclick="vaultClick('q')">
-            <img id="q-thumb-menu" class="thumb">
-            <br>
+            <img id="q-thumb-menu" class="thumb"><br>
             <center style="color:white;font-size:8px">QSAVE</center>
         </div>
     </div>
@@ -283,6 +282,7 @@
     let bStartX, bStartY;
     let db;
 
+    // Database Setup
     const request = indexedDB.open("WaterfallPro_DB", 1);
     request.onupgradeneeded = (e) => {
         e.target.result.createObjectStore("slots");
@@ -297,6 +297,7 @@
         m.height = d.height = window.innerHeight * 2;
         mctx.lineCap = dctx.lineCap = dctx.lineJoin = 'round';
 
+        // Font Grid Restoration
         const sg = document.getElementById('style-grid');
         const fonts = ['sans-serif','serif','monospace','cursive','fantasy','system-ui','italic','bold','small-caps','900','oblique','Georgia'];
         
@@ -313,19 +314,33 @@
             sg.appendChild(s);
         });
         upClr();
+        
+        // Visual Viewport Zoom Fix
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('scroll', updateUIPosition);
+            window.visualViewport.addEventListener('resize', updateUIPosition);
+        }
+    }
+
+    function updateUIPosition() {
+        const v = window.visualViewport;
+        const dock = document.querySelector('.dock');
+        const panels = document.querySelectorAll('.panel');
+        
+        const scale = 1 / v.scale;
+        dock.style.transform = `scale(${scale}) translate(${(v.offsetLeft * v.scale)}px, ${(v.offsetTop * v.scale)}px)`;
+        panels.forEach(p => {
+            p.style.transform = `scale(${scale}) translate(${(v.offsetLeft * v.scale)}px, ${(v.offsetTop * v.scale)}px)`;
+        });
     }
 
     function upClr() {
         const h = document.getElementById('hue-s').value;
         let base;
         
-        if (h < 10) {
-            base = '#ffffff';
-        } else if (h > 350) {
-            base = '#000000';
-        } else {
-            base = `hsla(${h}, 100%, 50%, 1)`;
-        }
+        if (h < 10) base = '#ffffff';
+        else if (h > 350) base = '#000000';
+        else base = `hsla(${h}, 100%, 50%, 1)`;
 
         cfg.color = base;
         cfg.size = document.getElementById('size-s').value;
@@ -354,16 +369,12 @@
         const p = document.getElementById(id);
         const isOpen = p.classList.contains('open');
         document.querySelectorAll('.panel').forEach(x => x.classList.remove('open'));
-        if (!isOpen) {
-            p.classList.add('open');
-        }
+        if (!isOpen) p.classList.add('open');
     }
 
     function toggleT(t) {
         cfg.tool = (cfg.tool === t) ? null : t;
         if (cfg.tool) {
-            cfg.edit = false;
-            document.getElementById('edit-box').classList.remove('active');
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
@@ -375,13 +386,6 @@
 
     function toggleEdit() {
         cfg.edit = !cfg.edit;
-        if (cfg.edit) {
-            cfg.tool = null;
-            document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'auto';
-        }
         document.getElementById('edit-box').classList.toggle('active', cfg.edit);
     }
 
@@ -414,8 +418,8 @@
 
     window.addEventListener('touchmove', (e) => {
         if (!isDrawing && !cfg.pasting) return;
-        
         e.preventDefault();
+        
         const rect = d.getBoundingClientRect();
         const nx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
         const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
@@ -440,18 +444,15 @@
         } else if (cfg.tool === 'smooth' && cfg.edit) {
             dctx.globalAlpha = 0.2;
             dctx.drawImage(m, nx - cfg.size, ny - cfg.size, cfg.size * 2, cfg.size * 2, nx - cfg.size, ny - cfg.size, cfg.size * 2, cfg.size * 2);
-        } else if (cfg.tool === 'bridge' && cfg.edit) {
+        } else if (cfg.tool === 'bridge') {
             dctx.clearRect(0, 0, d.width, d.height);
-            if (cfg.history.length > 0) {
-                dctx.putImageData(cfg.history[cfg.history.length - 1], 0, 0);
-            }
             dctx.strokeStyle = cfg.color;
             dctx.lineWidth = cfg.size / 2;
             dctx.beginPath();
             dctx.moveTo(bStartX, bStartY);
             dctx.lineTo(nx, ny);
             dctx.stroke();
-        } else if (!cfg.tool && cfg.edit) {
+        } else if (cfg.edit) {
             dctx.strokeStyle = cfg.color;
             dctx.lineWidth = cfg.size;
             dctx.setLineDash([]);
@@ -470,23 +471,16 @@
         isDrawing = false;
 
         if (cfg.tool === 'cut' || cfg.tool === 'copy') {
-            dctx.strokeStyle = 'red';
-            dctx.setLineDash([]);
-            dctx.beginPath();
-            dctx.moveTo(cfg.path[0].x, cfg.path[0].y);
-            cfg.path.forEach(p => dctx.lineTo(p.x, p.y));
-            dctx.closePath();
-            dctx.stroke();
-
             if (cfg.tool === 'copy') {
                 const xs = cfg.path.map(p => p.x);
                 const ys = cfg.path.map(p => p.y);
-                const minX = Math.min(...xs);
-                const minY = Math.min(...ys);
-                const maxX = Math.max(...xs);
-                const maxY = Math.max(...ys);
+                const minX = Math.min(...xs), minY = Math.min(...ys);
+                const maxX = Math.max(...xs), maxY = Math.max(...ys);
                 cfg.clip = mctx.getImageData(minX, minY, maxX - minX, maxY - minY);
+                
+                document.getElementById('copy').classList.remove('active');
                 document.getElementById('paste-btn').classList.add('active');
+                cfg.tool = null;
             }
 
             if (cfg.tool === 'cut') {
@@ -497,16 +491,13 @@
                 mctx.clearRect(0, 0, m.width, m.height);
                 mctx.restore();
                 
-                dctx.save();
-                dctx.beginPath();
-                cfg.path.forEach(p => dctx.lineTo(p.x, p.y));
-                dctx.clip();
-                dctx.clearRect(0, 0, d.width, d.height);
-                dctx.restore();
+                document.getElementById('cut').classList.remove('active');
+                cfg.tool = null;
             }
+            dctx.clearRect(0, 0, d.width, d.height);
         }
 
-        if (cfg.tool === 'text' && cfg.edit) {
+        if (cfg.tool === 'text') {
             const txt = prompt("Enter Text:");
             if (txt) {
                 dctx.font = `bold ${cfg.size * 2}px ${cfg.font}`;
@@ -530,27 +521,19 @@
 
     function vAction(act, slot) {
         const key = slot === 'q' ? 'q' : `s${slot}`;
-        
         if (act === 'save') {
             mctx.drawImage(d, 0, 0);
             const data = m.toDataURL('image/jpeg', 0.7);
             db.transaction("slots", "readwrite").objectStore("slots").put(data, key);
-            
-            if (slot !== 'q') {
-                document.getElementById(`v-thumb-${slot}`).src = data;
-            } else {
-                document.getElementById('q-thumb-dock').src = data;
-                document.getElementById('q-thumb-menu').src = data;
-            }
+            const targetId = slot === 'q' ? 'q-thumb-menu' : `v-thumb-${slot}`;
+            document.getElementById(targetId).src = data;
+            if(slot === 'q') document.getElementById('q-thumb-dock').src = data;
         } else {
             const req = db.transaction("slots", "readonly").objectStore("slots").get(key);
             req.onsuccess = () => {
                 if (req.result) {
                     const img = new Image();
-                    img.onload = () => {
-                        mctx.clearRect(0, 0, m.width, m.height);
-                        mctx.drawImage(img, 0, 0);
-                    };
+                    img.onload = () => { mctx.clearRect(0, 0, m.width, m.height); mctx.drawImage(img, 0, 0); };
                     img.src = req.result;
                 }
             };
@@ -564,7 +547,7 @@
             req.onsuccess = () => {
                 if (req.result) {
                     const l = document.createElement('a');
-                    l.download = `vault_${slot}.jpg`;
+                    l.download = `arch_vault_${slot}.jpg`;
                     l.href = req.result;
                     l.click();
                 }
@@ -582,9 +565,7 @@
                 if (req.result) {
                     const id = k === 'q' ? 'q-thumb-menu' : `v-thumb-${k.substring(1)}`;
                     document.getElementById(id).src = req.result;
-                    if (k === 'q') {
-                        document.getElementById('q-thumb-dock').src = req.result;
-                    }
+                    if (k === 'q') document.getElementById('q-thumb-dock').src = req.result;
                 }
             };
         });
@@ -599,29 +580,18 @@
         if (cfg.history.length > 0) {
             cfg.history.pop();
             dctx.clearRect(0, 0, d.width, d.height);
-            if (cfg.history.length > 0) {
-                dctx.putImageData(cfg.history[cfg.history.length - 1], 0, 0);
-            }
+            if (cfg.history.length > 0) dctx.putImageData(cfg.history[cfg.history.length - 1], 0, 0);
         }
     }
 
     function handlePaste() {
         if (!cfg.clip) return;
         cfg.pasting = !cfg.pasting;
-        
         if (!cfg.pasting) {
             mctx.putImageData(cfg.clip, cfg.px - (cfg.clip.width / 2), cfg.py - (cfg.clip.height / 2));
             dctx.clearRect(0, 0, d.width, d.height);
             document.getElementById('paste-btn').classList.remove('active');
         }
-    }
-
-    function exp() {
-        mctx.drawImage(d, 0, 0);
-        const l = document.createElement('a');
-        l.download = 'architect_export.jpg';
-        l.href = m.toDataURL('image/jpeg', 0.9);
-        l.click();
     }
 
     function imp() {
@@ -630,24 +600,4 @@
         i.onchange = e => {
             const r = new FileReader();
             r.onload = ev => {
-                const img = new Image();
-                img.onload = () => {
-                    mctx.drawImage(img, 0, 0, m.width, m.height);
-                };
-                img.src = ev.target.result;
-            };
-            r.readAsDataURL(e.target.files[0]);
-        };
-        i.click();
-    }
-
-    function handleSticker() {
-        imp();
-    }
-
-    window.onload = init;
-</script>
-
-</body>
-</html>
- 
+                
