@@ -374,6 +374,35 @@
                 cfg.anchorY = ny - (cfg.py || ny);
                 // Setup the hidden performance buffer
                 if (!cfg.buffer) {
+                    d.addEventListener('touchstart', (e) => {
+        const rect = d.getBoundingClientRect();
+        const nx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
+        const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
+        cfg.active = true;
+
+        if (cfg.tool === 'brush' || cfg.tool === 'eraser') {
+            mctx.beginPath();
+            mctx.moveTo(nx, ny);
+            mctx.strokeStyle = cfg.tool === 'eraser' ? 'white' : cfg.color;
+            mctx.lineWidth = cfg.size;
+            mctx.lineCap = 'round';
+        } else if (cfg.tool === 'cut' || cfg.tool === 'copy') {
+            cfg.path = [{x: nx, y: ny}];
+        } else if (cfg.tool === 'picker') {
+            cfg.pasting = false;
+            const data = mctx.getImageData(nx, ny, 1, 1).data;
+            cfg.color = `rgb(${data[0]},${data[1]},${data[2]})`;
+            document.getElementById('color-btn').style.backgroundColor = cfg.color;
+        } else if (cfg.tool === 'sticker') {
+            cfg.pasting = false;
+        }
+
+        if (cfg.tool === 'paste' || cfg.pasting) {
+            if (!cfg.pasting) {
+                cfg.pasting = true;
+                cfg.anchorX = nx - (cfg.px || nx);
+                cfg.anchorY = ny - (cfg.py || ny);
+                if (!cfg.buffer) {
                     cfg.buffer = document.createElement('canvas');
                     cfg.buffer.width = d.width;
                     cfg.buffer.height = d.height;
@@ -381,8 +410,7 @@
                 }
             }
         }
-        lx = nx;
-        ly = ny;
+        lx = nx; ly = ny;
     });
 
     d.addEventListener('touchmove', (e) => {
@@ -392,62 +420,70 @@
         const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
 
         if (cfg.pasting && cfg.clip) {
-            dctx.clearRect(0, 0, d.width, d.height);
-            const bCtx = cfg.bCtx;
-            bCtx.clearRect(0, 0, d.width, d.height);
             cfg.px = nx - cfg.anchorX;
             cfg.py = ny - cfg.anchorY;
-            // Draw to hidden buffer first (Fast)
-            bCtx.putImageData(cfg.clip, cfg.px - (cfg.clip.width/2), cfg.py - (cfg.clip.height/2));
-            // Snapshot to screen
-            dctx.globalAlpha = 0.5;
-            dctx.drawImage(cfg.buffer, 0, 0);
-            dctx.globalAlpha = 1.0;
+            if (!cfg.ticking) {
+                requestAnimationFrame(() => {
+                    dctx.clearRect(0, 0, d.width, d.height);
+                    cfg.bCtx.clearRect(0, 0, d.width, d.height);
+                    cfg.bCtx.putImageData(cfg.clip, cfg.px - (cfg.clip.width/2), cfg.py - (cfg.clip.height/2));
+                    dctx.globalAlpha = 0.5;
+                    dctx.drawImage(cfg.buffer, 0, 0);
+                    dctx.globalAlpha = 1.0;
+                    cfg.ticking = false;
+                });
+                cfg.ticking = true;
+            }
             return;
         }
 
-        if (cfg.tool === 'cut' || cfg.tool === 'copy') {
+        if (cfg.tool === 'brush' || cfg.tool === 'eraser') {
+            mctx.lineTo(nx, ny);
+            mctx.stroke();
+        } else if (cfg.tool === 'cut' || cfg.tool === 'copy') {
+            dctx.clearRect(0, 0, d.width, d.height);
             dctx.strokeStyle = '#00ff66';
-            dctx.lineWidth = 2;
             dctx.setLineDash([5, 5]);
-            dctx.beginPath();
-            dctx.moveTo(lx, ly);
-            dctx.lineTo(nx, ny);
-            dctx.stroke();
-            cfg.path.push({x: nx, y: ny});
+            dctx.strokeRect(cfg.path[0].x, cfg.path[0].y, nx - cfg.path[0].x, ny - cfg.path[0].y);
         } else if (cfg.tool === 'sticker') {
             dctx.clearRect(0, 0, d.width, d.height);
             dctx.drawImage(stickerImg, nx - 25, ny - 25, 50, 50);
         }
     });
 
-    window.addEventListener('touchend', () => {
+    window.addEventListener('touchend', (e) => {
         if (!cfg.active) return;
         if (cfg.pasting) {
-            mctx.drawImage(cfg.buffer || d, 0, 0);
+            mctx.drawImage(cfg.buffer, 0, 0);
             dctx.clearRect(0, 0, d.width, d.height);
             cfg.pasting = false;
         } else if (cfg.tool === 'copy' || cfg.tool === 'cut') {
-            const x = Math.min(...cfg.path.map(p => p.x));
-            const y = Math.min(...cfg.path.map(p => p.y));
-            const w = Math.max(...cfg.path.map(p => p.x)) - x;
-            const h = Math.max(...cfg.path.map(p => p.y)) - y;
-            if (w > 0 && h > 0) {
+            const x = cfg.path[0].x;
+            const y = cfg.path[0].y;
+            const rect = d.getBoundingClientRect();
+            const endX = (e.changedTouches[0].clientX - rect.left) * (d.width / rect.width);
+            const endY = (e.changedTouches[0].clientY - rect.top) * (d.height / rect.height);
+            const w = endX - x;
+            const h = endY - y;
+            if (Math.abs(w) > 1 && Math.abs(h) > 1) {
                 cfg.clip = mctx.getImageData(x, y, w, h);
                 if (cfg.tool === 'cut') mctx.clearRect(x, y, w, h);
             }
             dctx.clearRect(0, 0, d.width, d.height);
-            cfg.path = [];
-        } else {
-            mctx.drawImage(d, 0, 0);
+        } else if (cfg.tool === 'sticker') {
+            const rect = d.getBoundingClientRect();
+            const endX = (e.changedTouches[0].clientX - rect.left) * (d.width / rect.width);
+            const endY = (e.changedTouches[0].clientY - rect.top) * (d.height / rect.height);
+            mctx.drawImage(stickerImg, endX - 25, endY - 25, 50, 50);
             dctx.clearRect(0, 0, d.width, d.height);
         }
+        cfg.active = false;
         saveHistory();
     });
 
     function saveHistory() {
         cfg.history.push(m.toDataURL());
-        if (cfg.history.length > 10) cfg.history.shift();
+        if (cfg.history.length > 15) cfg.history.shift();
     }
 
     function undo() {
@@ -461,7 +497,6 @@
         img.src = cfg.history[cfg.history.length - 1];
     }
 
-    // Vault/Storage Logic Restored
     function saveToVault() {
         const name = prompt("Name this sketch:");
         if (name) {
@@ -486,6 +521,10 @@
         }
     }
 
+    document.getElementById('undo-btn').onclick = undo;
+    document.getElementById('save-vault-btn').onclick = saveToVault;
+    document.getElementById('load-vault-btn').onclick = loadFromVault;
+
     function init() {
         mctx.fillStyle = 'white';
         mctx.fillRect(0, 0, m.width, m.height);
@@ -496,3 +535,4 @@
 </script>
 </body>
 </html>
+                    
