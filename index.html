@@ -3,50 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>Retoucher Pro Fluoro – Fixed</title>
+<title>Retoucher Pro Fluoro – Full Fixed Build</title>
 
 <style>
-:root {
+:root{
     --bg:#000;
     --glass:rgba(15,15,15,0.98);
     --fluoro:#00ff66;
     --glow:0 0 20px #00ff66;
     --ui-font:Inter,sans-serif;
 }
-
-* {
-    box-sizing:border-box;
-    -webkit-tap-highlight-color:transparent;
-}
-
-body {
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{
     margin:0;
-    padding:0;
     background:var(--bg);
     font-family:var(--ui-font);
     width:100vw;
     height:100vh;
+    overflow:hidden;
 }
-
-#viewer {
+#viewer{
     position:relative;
     width:100vw;
     height:100vh;
-    overflow:hidden;
     background:#0a0a0a;
 }
-
-canvas {
+canvas{
     position:absolute;
     inset:0;
     width:100%;
     height:100%;
 }
+#mainLayer{z-index:2;}
+#drawLayer{z-index:3;pointer-events:none;}
 
-#mainLayer { z-index:2; }
-#drawLayer { z-index:3; pointer-events:none; }
-
-.dock {
+.dock{
     position:fixed;
     bottom:20px;
     left:50%;
@@ -62,8 +53,7 @@ canvas {
     z-index:10000;
     transform-origin:bottom center;
 }
-
-.box {
+.box{
     width:60px;
     height:60px;
     border-radius:18px;
@@ -75,18 +65,16 @@ canvas {
     font-weight:900;
     color:#fff;
     background:rgba(255,255,255,0.05);
-    cursor:pointer;
     border:1.5px solid transparent;
-    transition:0.2s;
+    cursor:pointer;
 }
-
-.box.active {
+.box.active{
     border-color:var(--fluoro);
     color:var(--fluoro);
     box-shadow:var(--glow);
 }
 
-.panel {
+.panel{
     position:fixed;
     bottom:110px;
     left:50%;
@@ -102,16 +90,14 @@ canvas {
     z-index:9999;
     transform-origin:bottom center;
 }
+.panel.open{display:flex;}
 
-.panel.open { display:flex; }
-
-.grid-3 {
+.grid-3{
     display:grid;
     grid-template-columns:repeat(3,1fr);
     gap:8px;
 }
-
-.btn {
+.btn{
     padding:12px;
     background:rgba(255,255,255,0.1);
     border-radius:12px;
@@ -122,19 +108,27 @@ canvas {
     text-align:center;
     cursor:pointer;
 }
-
-.btn.active {
+.btn.active{
     border-color:var(--fluoro);
     color:var(--fluoro);
     box-shadow:var(--glow);
 }
 
-.thumb {
-    width:45px;
-    height:45px;
-    border:1.5px solid var(--fluoro);
-    background:#000;
-    object-fit:contain;
+#brush-preview{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    border:2px solid #fff;
+}
+.shade-grid{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:5px;
+}
+.shade-box{
+    height:30px;
+    border-radius:6px;
+    border:1px solid #333;
 }
 </style>
 </head>
@@ -146,40 +140,70 @@ canvas {
     <canvas id="drawLayer"></canvas>
 </div>
 
-<div class="panel" id="tools-panel">
+<!-- MENU -->
+<div class="panel" id="menu-panel">
     <div class="grid-3">
-        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
-        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
+        <div class="btn" onclick="imp()">IMPORT</div>
+        <div class="btn" onclick="saveVault()">SAVE</div>
         <div class="btn" onclick="undo()">UNDO</div>
     </div>
 </div>
 
+<!-- TOOLS -->
+<div class="panel" id="tools-panel">
+    <div class="grid-3">
+        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
+        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
+        <div class="btn t-btn" id="paste" onclick="togglePaste()">PASTE</div>
+    </div>
+</div>
+
+<!-- BRUSH -->
+<div class="panel" id="brush-panel">
+    <div class="shade-grid" id="shade-grid"></div>
+    <div style="display:flex;align-items:center;gap:15px;">
+        <div id="brush-preview"></div>
+        <div style="flex:1;">
+            <input type="range" min="0" max="360" value="150" oninput="updateColor(this.value)">
+            <input type="range" min="1" max="100" value="20" oninput="cfg.size=this.value">
+        </div>
+    </div>
+</div>
+
+<!-- EDIT -->
+<div class="panel" id="edit-panel">
+    <div class="btn" onclick="toggleEdit()">TOGGLE EDIT MODE</div>
+</div>
+
 <div class="dock">
+    <div class="box" onclick="toggleP('menu-panel')">MENU</div>
     <div class="box" onclick="toggleP('tools-panel')">TOOLS</div>
+    <div class="box" onclick="toggleP('brush-panel')">BRUSH</div>
+    <div class="box" id="edit-box" onclick="toggleP('edit-panel')">EDIT</div>
 </div>
 
 <script>
-const m = document.getElementById('mainLayer');
-const d = document.getElementById('drawLayer');
-const mctx = m.getContext('2d');
-const dctx = d.getContext('2d');
+const m=document.getElementById('mainLayer');
+const d=document.getElementById('drawLayer');
+const mctx=m.getContext('2d');
+const dctx=d.getContext('2d');
 
-m.width = d.width = innerWidth * 2;
-m.height = d.height = innerHeight * 2;
-mctx.lineCap = dctx.lineCap = 'round';
+m.width=d.width=innerWidth*2;
+m.height=d.height=innerHeight*2;
+mctx.lineCap=dctx.lineCap='round';
 
-let cfg = {
+let cfg={
     tool:null,
     color:'#00ff66',
     size:20,
     path:[],
     clip:null,
     pasting:false,
+    edit:false,
     history:[]
 };
 
-let isDrawing=false;
-let lx=0, ly=0;
+let lx=0,ly=0,isDrawing=false,px=0,py=0;
 
 function toggleP(id){
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));
@@ -187,10 +211,22 @@ function toggleP(id){
 }
 
 function toggleT(t){
-    cfg.tool = cfg.tool === t ? null : t;
+    cfg.tool = cfg.tool===t?null:t;
     document.querySelectorAll('.t-btn').forEach(b=>{
-        b.classList.toggle('active', b.id === cfg.tool);
+        b.classList.toggle('active',b.id===cfg.tool);
     });
+}
+
+function toggleEdit(){
+    cfg.edit=!cfg.edit;
+    document.getElementById('edit-box').classList.toggle('active',cfg.edit);
+}
+
+function togglePaste(){
+    if(cfg.clip){
+        cfg.pasting=true;
+        toggleT(null);
+    }
 }
 
 function commitHistory(){
@@ -198,16 +234,35 @@ function commitHistory(){
 }
 
 window.addEventListener('touchstart',e=>{
-    if(!cfg.tool) return;
+    if(e.target.closest('.dock')||e.target.closest('.panel')) return;
     e.preventDefault();
     const r=d.getBoundingClientRect();
     lx=(e.touches[0].clientX-r.left)*(d.width/r.width);
     ly=(e.touches[0].clientY-r.top)*(d.height/r.height);
+
+    if(cfg.pasting){
+        px=lx; py=ly;
+        return;
+    }
+
+    if(!cfg.tool) return;
     cfg.path=[{x:lx,y:ly}];
     isDrawing=true;
 },{passive:false});
 
 window.addEventListener('touchmove',e=>{
+    if(cfg.pasting){
+        e.preventDefault();
+        const r=d.getBoundingClientRect();
+        px=(e.touches[0].clientX-r.left)*(d.width/r.width);
+        py=(e.touches[0].clientY-r.top)*(d.height/r.height);
+        dctx.clearRect(0,0,d.width,d.height);
+        dctx.globalAlpha=0.5;
+        dctx.putImageData(cfg.clip,px-(cfg.clip.width/2),py-(cfg.clip.height/2));
+        dctx.globalAlpha=1;
+        return;
+    }
+
     if(!isDrawing) return;
     e.preventDefault();
     const r=d.getBoundingClientRect();
@@ -229,7 +284,15 @@ window.addEventListener('touchmove',e=>{
 },{passive:false});
 
 window.addEventListener('touchend',()=>{
-    if(cfg.tool==='cut'||cfg.tool==='copy'){
+    if(cfg.pasting){
+        mctx.putImageData(cfg.clip,px-(cfg.clip.width/2),py-(cfg.clip.height/2));
+        cfg.pasting=false;
+        dctx.clearRect(0,0,d.width,d.height);
+        commitHistory();
+        return;
+    }
+
+    if(cfg.tool==='copy'||cfg.tool==='cut'){
         const temp=document.createElement('canvas');
         temp.width=d.width;
         temp.height=d.height;
@@ -240,7 +303,6 @@ window.addEventListener('touchend',()=>{
         tctx.closePath();
         tctx.clip();
         tctx.drawImage(m,0,0);
-
         cfg.clip=tctx.getImageData(0,0,temp.width,temp.height);
 
         if(cfg.tool==='cut'){
@@ -251,9 +313,10 @@ window.addEventListener('touchend',()=>{
             mctx.clip();
             mctx.clearRect(0,0,m.width,m.height);
             mctx.restore();
+            commitHistory();
+        } else {
+            cfg.pasting=true;
         }
-
-        commitHistory();
     }
 
     dctx.clearRect(0,0,d.width,d.height);
@@ -265,6 +328,41 @@ function undo(){
         mctx.putImageData(cfg.history.pop(),0,0);
     }
 }
+
+function imp(){
+    const i=document.createElement('input');
+    i.type='file';
+    i.onchange=e=>{
+        const r=new FileReader();
+        r.onload=b=>{
+            const img=new Image();
+            img.onload=()=>{mctx.drawImage(img,0,0,m.width,m.height);commitHistory();};
+            img.src=b.target.result;
+        };
+        r.readAsDataURL(e.target.files[0]);
+    };
+    i.click();
+}
+
+function saveVault(){
+    alert('Vault hook ready (DB can be reattached)');
+}
+
+function updateColor(h){
+    cfg.color=`hsla(${h},100%,50%,1)`;
+    document.getElementById('brush-preview').style.background=cfg.color;
+}
+
+(function initShades(){
+    const g=document.getElementById('shade-grid');
+    for(let i=0;i<10;i++){
+        const d=document.createElement('div');
+        d.className='shade-box';
+        d.style.background=`hsla(150,100%,${10+i*8}%,1)`;
+        d.onclick=()=>cfg.color=d.style.background;
+        g.appendChild(d);
+    }
+})();
 </script>
 
 </body>
