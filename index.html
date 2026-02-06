@@ -2,368 +2,217 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>Retoucher Pro Fluoro – Full Fixed Build</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Pic Ed Rainbow Pro</title>
 <style>
-:root{
-    --bg:#000;
-    --glass:rgba(15,15,15,0.98);
-    --fluoro:#00ff66;
-    --glow:0 0 20px #00ff66;
-    --ui-font:Inter,sans-serif;
+:root {
+  --bg: #000;
+  --panel-bg: rgba(15,15,15,0.95);
+  --fluoro: #00ff64;
+  --glow: 0 0 15px var(--fluoro);
+  --ui-font: 'Inter', sans-serif;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{
-    margin:0;
-    background:var(--bg);
-    font-family:var(--ui-font);
-    width:100vw;
-    height:100vh;
-    overflow:hidden;
-}
-#viewer{
-    position:relative;
-    width:100vw;
-    height:100vh;
-    background:#0a0a0a;
-}
-canvas{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-}
-#mainLayer{z-index:2;}
-#drawLayer{z-index:3;pointer-events:none;}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin:0; font-family: var(--ui-font); background: var(--bg); color:#fff; overflow:hidden; display:flex; flex-direction:column; height:100vh; }
+#viewer { flex:1; position:relative; background:#111; touch-action:none; }
+canvas { position:absolute; top:0; left:0; width:100%; height:100%; image-rendering: pixelated; }
+.nav { height:80px; background:#151515; display:flex; justify-content:space-around; align-items:center; border-top:1px solid #444; z-index:2000; }
+.btn { width:22%; height:50px; border-radius:10px; background:#222; border:1px solid #555; color:#fff; font-size:10px; font-weight:bold; display:flex; flex-direction:column; justify-content:center; align-items:center; text-transform:uppercase; transition:0.2s; }
+.glow-active { border-color: var(--fluoro) !important; color: var(--fluoro) !important; box-shadow: var(--glow) !important; }
+.panel { position:absolute; bottom:100px; width:90%; left:5%; background: var(--panel-bg); border-radius:15px; padding:15px; display:none; z-index:2100; border:1px solid #444; }
+.tool-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:10px; }
+.shade-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; margin-bottom:10px; height:6mm; }
+.shade-btn { border-radius:4px; border:1px solid #444; cursor:pointer; }
+input[type=range] { width:100%; margin:5px 0; height:6mm; -webkit-appearance:none; background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00); border-radius:3px; }
+#brushSize { width:100%; margin-top:5px; }
 
-.dock{
-    position:fixed;
-    bottom:20px;
-    left:50%;
-    margin-left:-160px;
-    width:320px;
-    display:flex;
-    gap:8px;
-    padding:10px;
-    background:var(--glass);
-    border-radius:28px;
-    border:1px solid rgba(0,255,102,0.3);
-    justify-content:center;
-    z-index:10000;
-    transform-origin:bottom center;
-}
-.box{
-    width:60px;
-    height:60px;
-    border-radius:18px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    font-size:9px;
-    font-weight:900;
-    color:#fff;
-    background:rgba(255,255,255,0.05);
-    border:1.5px solid transparent;
-    cursor:pointer;
-}
-.box.active{
-    border-color:var(--fluoro);
-    color:var(--fluoro);
-    box-shadow:var(--glow);
-}
-
-.panel{
-    position:fixed;
-    bottom:110px;
-    left:50%;
-    margin-left:-160px;
-    width:320px;
-    padding:15px;
-    background:var(--glass);
-    border-radius:24px;
-    border:1px solid var(--fluoro);
-    display:none;
-    flex-direction:column;
-    gap:12px;
-    z-index:9999;
-    transform-origin:bottom center;
-}
-.panel.open{display:flex;}
-
-.grid-3{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:8px;
-}
-.btn{
-    padding:12px;
-    background:rgba(255,255,255,0.1);
-    border-radius:12px;
-    font-size:10px;
-    font-weight:bold;
-    color:#fff;
-    border:1px solid transparent;
-    text-align:center;
-    cursor:pointer;
-}
-.btn.active{
-    border-color:var(--fluoro);
-    color:var(--fluoro);
-    box-shadow:var(--glow);
-}
-
-#brush-preview{
-    width:30px;
-    height:30px;
-    border-radius:50%;
-    border:2px solid #fff;
-}
-.shade-grid{
-    display:grid;
-    grid-template-columns:repeat(5,1fr);
-    gap:5px;
-}
-.shade-box{
-    height:30px;
-    border-radius:6px;
-    border:1px solid #333;
-}
 </style>
 </head>
-
 <body>
 
 <div id="viewer">
-    <canvas id="mainLayer"></canvas>
-    <canvas id="drawLayer"></canvas>
+  <canvas id="baseLayer"></canvas>
+  <canvas id="editLayer"></canvas>
 </div>
 
-<!-- MENU -->
-<div class="panel" id="menu-panel">
-    <div class="grid-3">
-        <div class="btn" onclick="imp()">IMPORT</div>
-        <div class="btn" onclick="saveVault()">SAVE</div>
-        <div class="btn" onclick="undo()">UNDO</div>
-    </div>
+<div id="menuPanel" class="panel">
+  <div class="tool-grid">
+    <button class="btn" onclick="Engine.io('up')">Upload</button>
+    <button class="btn" onclick="Engine.io('dl')">Export</button>
+    <button class="btn" onclick="Engine.copy()">Copy 📋</button>
+    <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
+    <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
+    <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
+  </div>
 </div>
 
-<!-- TOOLS -->
-<div class="panel" id="tools-panel">
-    <div class="grid-3">
-        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
-        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
-        <div class="btn t-btn" id="paste" onclick="togglePaste()">PASTE</div>
-    </div>
+<div id="brushPanel" class="panel">
+  <div class="shade-grid" id="shadeContainer"></div>
+  <div style="display:flex; gap:10px; margin-bottom:5px;">
+    <button class="btn" onclick="Engine.setColor('#000')">Black</button>
+    <button class="btn" onclick="Engine.setColor('#fff')">White</button>
+  </div>
+  <input type="range" id="hueSlider" min="0" max="360" value="0" oninput="Engine.updateHue(this.value)">
+  <p style="font-size:10px; margin:5px 0;">Size</p>
+  <input type="range" id="brushSize" min="2" max="100" value="20">
 </div>
 
-<!-- BRUSH -->
-<div class="panel" id="brush-panel">
-    <div class="shade-grid" id="shade-grid"></div>
-    <div style="display:flex;align-items:center;gap:15px;">
-        <div id="brush-preview"></div>
-        <div style="flex:1;">
-            <input type="range" min="0" max="360" value="150" oninput="updateColor(this.value)">
-            <input type="range" min="1" max="100" value="20" oninput="cfg.size=this.value">
-        </div>
-    </div>
-</div>
-
-<!-- EDIT -->
-<div class="panel" id="edit-panel">
-    <div class="btn" onclick="toggleEdit()">TOGGLE EDIT MODE</div>
-</div>
-
-<div class="dock">
-    <div class="box" onclick="toggleP('menu-panel')">MENU</div>
-    <div class="box" onclick="toggleP('tools-panel')">TOOLS</div>
-    <div class="box" onclick="toggleP('brush-panel')">BRUSH</div>
-    <div class="box" id="edit-box" onclick="toggleP('edit-panel')">EDIT</div>
-</div>
+<nav class="nav">
+  <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
+  <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
+  <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
+  <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
+</nav>
 
 <script>
-const m=document.getElementById('mainLayer');
-const d=document.getElementById('drawLayer');
-const mctx=m.getContext('2d');
-const dctx=d.getContext('2d');
+const Engine = {
+  base: document.getElementById('baseLayer'),
+  edit: document.getElementById('editLayer'),
+  btx:null, etx:null,
+  mode:'pan', scale:1, ox:0, oy:0,
+  curHue:0, curCol:'#ff0000', brushSize:20,
+  history:[], clip:null, pasting:false, anchorX:0, anchorY:0, px:0, py:0,
 
-m.width=d.width=innerWidth*2;
-m.height=d.height=innerHeight*2;
-mctx.lineCap=dctx.lineCap='round';
+  init() {
+    this.btx=this.base.getContext('2d');
+    this.etx=this.edit.getContext('2d');
+    this.updateHue(0);
+    this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800');
+    this.resizeCanvas();
+    window.addEventListener('resize',()=>this.resizeCanvas());
+    this.bindTouch();
+  },
 
-let cfg={
-    tool:null,
-    color:'#00ff66',
-    size:20,
-    path:[],
-    clip:null,
-    pasting:false,
-    edit:false,
-    history:[]
+  resizeCanvas() {
+    const w=this.base.clientWidth,h=this.base.clientHeight;
+    this.base.width=this.edit.width=w;
+    this.base.height=this.edit.height=h;
+  },
+
+  toggleUI(type){
+    const panel=document.getElementById(type+'Panel');
+    const btn=document.getElementById('btn-'+type);
+    const isShowing=panel.style.display==='block';
+    document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+    document.querySelectorAll('.nav .btn').forEach(b=>{ if(b.id!=='btn-edit') b.classList.remove('glow-active');});
+    if(!isShowing){ panel.style.display='block'; btn.classList.add('glow-active'); }
+  },
+
+  toggleEdit(){
+    const b=document.getElementById('btn-edit');
+    this.mode=(this.mode==='pan')?'draw':'pan';
+    b.innerText=this.mode==='pan'?'Edit Off':'Edit On';
+    this.mode==='draw'?b.classList.add('glow-active'):b.classList.remove('glow-active');
+  },
+
+  updateHue(h){
+    this.curHue=h;
+    const container=document.getElementById('shadeContainer');
+    container.innerHTML='';
+    const brushBtn=document.getElementById('btn-brush');
+    for(let i=0;i<10;i++){
+      const lum=10+(i*8);
+      const col=`hsl(${h},100%,${lum}%)`;
+      const div=document.createElement('div');
+      div.className='shade-btn';
+      div.style.background=col;
+      div.onclick=()=>{this.curCol=col; brushBtn.style.background=col;};
+      container.appendChild(div);
+    }
+    this.curCol=`hsl(${h},100%,50%)`;
+    brushBtn.style.background=this.curCol;
+  },
+
+  setColor(c){ this.curCol=c; document.getElementById('btn-brush').style.background=c; },
+
+  rotate(){
+    const t=document.createElement('canvas');
+    t.width=this.base.height;t.height=this.base.width;
+    const tx=t.getContext('2d');
+    tx.translate(t.width/2,t.height/2); tx.rotate(Math.PI/2);
+    tx.drawImage(this.base,-this.base.width/2,-this.base.height/2);
+    this.base.width=this.edit.width=t.width;
+    this.base.height=this.edit.height=t.height;
+    this.btx.drawImage(t,0,0);
+    this.resetView();
+  },
+
+  resetView(){ this.scale=1; this.ox=0; this.oy=0; this.update(); },
+  update(){ const s=`translate(${this.ox}px,${this.oy}px) scale(${this.scale})`; this.base.style.transform=this.edit.style.transform=s; },
+
+  io(type){
+    if(type==='up'){
+      const i=document.createElement('input'); i.type='file';
+      i.onchange=e=>{ const r=new FileReader(); r.onload=v=>this.loadImg(v.target.result); r.readAsDataURL(e.target.files[0]); }; i.click();
+    } else {
+      const a=document.createElement('a'); a.download='export.png';
+      const t=document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height;
+      t.getContext('2d').drawImage(this.base,0,0); t.getContext('2d').drawImage(this.edit,0,0);
+      a.href=t.toDataURL(); a.click();
+    }
+  },
+
+  loadImg(u){
+    const m=new Image(); m.crossOrigin="anonymous";
+    m.onload=()=>{
+      this.base.width=this.edit.width=m.width;
+      this.base.height=this.edit.height=m.height;
+      this.btx.drawImage(m,0,0); this.resetView();
+    }; m.src=u;
+  },
+
+  clear(){ if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,this.edit.height); },
+
+  saveHistory(){
+    if(this.history.length>15) this.history.shift();
+    this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
+  },
+
+  undo(){ if(this.history.length)this.etx.putImageData(this.history.pop(),0,0); },
+
+  copy(){
+    this.clip=this.etx.getImageData(0,0,this.edit.width,this.edit.height);
+    this.pasting=true;
+    this.anchorX=this.anchorY=0;
+    alert('Copied current edit layer!');
+  },
+
+  pasteAt(x,y){
+    if(!this.clip) return;
+    this.etx.putImageData(this.clip,x-this.clip.width/2,y-this.clip.height/2);
+  },
+
+  bindTouch(){
+    let isDrawing=false, lx=0, ly=0;
+    const getPos=e=>{
+      const rect=this.edit.getBoundingClientRect();
+      return {x:(e.touches[0].clientX-rect.left)*(this.edit.width/rect.width), y:(e.touches[0].clientY-rect.top)*(this.edit.height/rect.height)};
+    };
+    this.edit.addEventListener('touchstart', e=>{
+      if(this.mode!=='draw') return;
+      e.preventDefault();
+      const p=getPos(e);
+      isDrawing=true; lx=p.x; ly=p.y;
+      this.etx.strokeStyle=this.curCol; this.etx.lineWidth=document.getElementById('brushSize').value;
+      this.etx.lineCap='round'; this.etx.lineJoin='round';
+      this.etx.beginPath(); this.etx.moveTo(lx,ly);
+    }, {passive:false});
+
+    this.edit.addEventListener('touchmove', e=>{
+      if(!isDrawing) return;
+      e.preventDefault();
+      const p=getPos(e);
+      this.etx.lineTo(p.x,p.y); this.etx.stroke();
+      lx=p.x; ly=p.y;
+    }, {passive:false});
+
+    this.edit.addEventListener('touchend', e=>{
+      if(isDrawing){ this.etx.closePath(); this.saveHistory(); isDrawing=false; }
+    });
+  }
 };
 
-let lx=0,ly=0,isDrawing=false,px=0,py=0;
-
-function toggleP(id){
-    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));
-    document.getElementById(id).classList.add('open');
-}
-
-function toggleT(t){
-    cfg.tool = cfg.tool===t?null:t;
-    document.querySelectorAll('.t-btn').forEach(b=>{
-        b.classList.toggle('active',b.id===cfg.tool);
-    });
-}
-
-function toggleEdit(){
-    cfg.edit=!cfg.edit;
-    document.getElementById('edit-box').classList.toggle('active',cfg.edit);
-}
-
-function togglePaste(){
-    if(cfg.clip){
-        cfg.pasting=true;
-        toggleT(null);
-    }
-}
-
-function commitHistory(){
-    cfg.history.push(mctx.getImageData(0,0,m.width,m.height));
-}
-
-window.addEventListener('touchstart',e=>{
-    if(e.target.closest('.dock')||e.target.closest('.panel')) return;
-    e.preventDefault();
-    const r=d.getBoundingClientRect();
-    lx=(e.touches[0].clientX-r.left)*(d.width/r.width);
-    ly=(e.touches[0].clientY-r.top)*(d.height/r.height);
-
-    if(cfg.pasting){
-        px=lx; py=ly;
-        return;
-    }
-
-    if(!cfg.tool) return;
-    cfg.path=[{x:lx,y:ly}];
-    isDrawing=true;
-},{passive:false});
-
-window.addEventListener('touchmove',e=>{
-    if(cfg.pasting){
-        e.preventDefault();
-        const r=d.getBoundingClientRect();
-        px=(e.touches[0].clientX-r.left)*(d.width/r.width);
-        py=(e.touches[0].clientY-r.top)*(d.height/r.height);
-        dctx.clearRect(0,0,d.width,d.height);
-        dctx.globalAlpha=0.5;
-        dctx.putImageData(cfg.clip,px-(cfg.clip.width/2),py-(cfg.clip.height/2));
-        dctx.globalAlpha=1;
-        return;
-    }
-
-    if(!isDrawing) return;
-    e.preventDefault();
-    const r=d.getBoundingClientRect();
-    const nx=(e.touches[0].clientX-r.left)*(d.width/r.width);
-    const ny=(e.touches[0].clientY-r.top)*(d.height/r.height);
-
-    dctx.clearRect(0,0,d.width,d.height);
-    dctx.strokeStyle=cfg.color;
-    dctx.lineWidth=2;
-    dctx.setLineDash([5,5]);
-
-    dctx.beginPath();
-    dctx.moveTo(cfg.path[0].x,cfg.path[0].y);
-    cfg.path.forEach(p=>dctx.lineTo(p.x,p.y));
-    dctx.lineTo(nx,ny);
-    dctx.stroke();
-
-    cfg.path.push({x:nx,y:ny});
-},{passive:false});
-
-window.addEventListener('touchend',()=>{
-    if(cfg.pasting){
-        mctx.putImageData(cfg.clip,px-(cfg.clip.width/2),py-(cfg.clip.height/2));
-        cfg.pasting=false;
-        dctx.clearRect(0,0,d.width,d.height);
-        commitHistory();
-        return;
-    }
-
-    if(cfg.tool==='copy'||cfg.tool==='cut'){
-        const temp=document.createElement('canvas');
-        temp.width=d.width;
-        temp.height=d.height;
-        const tctx=temp.getContext('2d');
-
-        tctx.beginPath();
-        cfg.path.forEach((p,i)=>i?tctx.lineTo(p.x,p.y):tctx.moveTo(p.x,p.y));
-        tctx.closePath();
-        tctx.clip();
-        tctx.drawImage(m,0,0);
-        cfg.clip=tctx.getImageData(0,0,temp.width,temp.height);
-
-        if(cfg.tool==='cut'){
-            mctx.save();
-            mctx.beginPath();
-            cfg.path.forEach((p,i)=>i?mctx.lineTo(p.x,p.y):mctx.moveTo(p.x,p.y));
-            mctx.closePath();
-            mctx.clip();
-            mctx.clearRect(0,0,m.width,m.height);
-            mctx.restore();
-            commitHistory();
-        } else {
-            cfg.pasting=true;
-        }
-    }
-
-    dctx.clearRect(0,0,d.width,d.height);
-    isDrawing=false;
-});
-
-function undo(){
-    if(cfg.history.length){
-        mctx.putImageData(cfg.history.pop(),0,0);
-    }
-}
-
-function imp(){
-    const i=document.createElement('input');
-    i.type='file';
-    i.onchange=e=>{
-        const r=new FileReader();
-        r.onload=b=>{
-            const img=new Image();
-            img.onload=()=>{mctx.drawImage(img,0,0,m.width,m.height);commitHistory();};
-            img.src=b.target.result;
-        };
-        r.readAsDataURL(e.target.files[0]);
-    };
-    i.click();
-}
-
-function saveVault(){
-    alert('Vault hook ready (DB can be reattached)');
-}
-
-function updateColor(h){
-    cfg.color=`hsla(${h},100%,50%,1)`;
-    document.getElementById('brush-preview').style.background=cfg.color;
-}
-
-(function initShades(){
-    const g=document.getElementById('shade-grid');
-    for(let i=0;i<10;i++){
-        const d=document.createElement('div');
-        d.className='shade-box';
-        d.style.background=`hsla(150,100%,${10+i*8}%,1)`;
-        d.onclick=()=>cfg.color=d.style.background;
-        g.appendChild(d);
-    }
-})();
+window.addEventListener('load',()=>Engine.init());
 </script>
-
 </body>
 </html>
