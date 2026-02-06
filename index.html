@@ -1,179 +1,271 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>31488_CORE_RECONSTRUCTION</title>
-    <style>
-        body { background: #000; color: #02feff; font-family: 'Consolas', monospace; margin: 0; padding: 0; overflow: hidden; }
-        #terminal { height: 75vh; overflow-y: scroll; padding: 20px; border-bottom: 2px solid #003b3d; scrollbar-width: none; }
-        .line { display: block; border-bottom: 1px solid #001a1a; font-size: 11px; white-space: pre; }
-        #diag { height: 25vh; background: #010101; display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px; gap: 10px; }
-        .metric { border: 1px solid #005f61; padding: 10px; position: relative; cursor: pointer; }
-        .label { color: #02feff; font-size: 9px; text-transform: uppercase; position: absolute; top: -5px; background: #010101; padding: 0 5px; }
-        .val { font-size: 18px; color: #fff; font-weight: bold; display: block; margin-top: 5px; }
-        #copy-status { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #02feff; color: #000; padding: 20px; font-weight: bold; display: none; z-index: 100; border-radius: 5px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Retoucher Pro Fluoro – Fixed</title>
+
+<style>
+:root {
+    --bg:#000;
+    --glass:rgba(15,15,15,0.98);
+    --fluoro:#00ff66;
+    --glow:0 0 20px #00ff66;
+    --ui-font:Inter,sans-serif;
+}
+
+* {
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+body {
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    font-family:var(--ui-font);
+    width:100vw;
+    height:100vh;
+}
+
+#viewer {
+    position:relative;
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
+    background:#0a0a0a;
+}
+
+canvas {
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+}
+
+#mainLayer { z-index:2; }
+#drawLayer { z-index:3; pointer-events:none; }
+
+.dock {
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    margin-left:-160px;
+    width:320px;
+    display:flex;
+    gap:8px;
+    padding:10px;
+    background:var(--glass);
+    border-radius:28px;
+    border:1px solid rgba(0,255,102,0.3);
+    justify-content:center;
+    z-index:10000;
+    transform-origin:bottom center;
+}
+
+.box {
+    width:60px;
+    height:60px;
+    border-radius:18px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    font-size:9px;
+    font-weight:900;
+    color:#fff;
+    background:rgba(255,255,255,0.05);
+    cursor:pointer;
+    border:1.5px solid transparent;
+    transition:0.2s;
+}
+
+.box.active {
+    border-color:var(--fluoro);
+    color:var(--fluoro);
+    box-shadow:var(--glow);
+}
+
+.panel {
+    position:fixed;
+    bottom:110px;
+    left:50%;
+    margin-left:-160px;
+    width:320px;
+    padding:15px;
+    background:var(--glass);
+    border-radius:24px;
+    border:1px solid var(--fluoro);
+    display:none;
+    flex-direction:column;
+    gap:12px;
+    z-index:9999;
+    transform-origin:bottom center;
+}
+
+.panel.open { display:flex; }
+
+.grid-3 {
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+}
+
+.btn {
+    padding:12px;
+    background:rgba(255,255,255,0.1);
+    border-radius:12px;
+    font-size:10px;
+    font-weight:bold;
+    color:#fff;
+    border:1px solid transparent;
+    text-align:center;
+    cursor:pointer;
+}
+
+.btn.active {
+    border-color:var(--fluoro);
+    color:var(--fluoro);
+    box-shadow:var(--glow);
+}
+
+.thumb {
+    width:45px;
+    height:45px;
+    border:1.5px solid var(--fluoro);
+    background:#000;
+    object-fit:contain;
+}
+</style>
 </head>
+
 <body>
-<div id="copy-status">SYSTEM COPIED</div>
-<div id="terminal"></div>
-<div id="diag">
-    <div class="metric" onclick="copyThis()"><span class="label">Total Payload</span><span class="val">31,488 CHR</span></div>
-    <div class="metric"><span class="label">Logic Anchor</span><span class="val">513 NODES</span></div>
-    <div class="metric"><span class="label">Integrity Fixes</span><span class="val">1-34 LOCKED</span></div>
-    <div class="metric"><span class="label">System Load</span><span id="load" class="val">0.0%</span></div>
+
+<div id="viewer">
+    <canvas id="mainLayer"></canvas>
+    <canvas id="drawLayer"></canvas>
+</div>
+
+<div class="panel" id="tools-panel">
+    <div class="grid-3">
+        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
+        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
+        <div class="btn" onclick="undo()">UNDO</div>
+    </div>
+</div>
+
+<div class="dock">
+    <div class="box" onclick="toggleP('tools-panel')">TOOLS</div>
 </div>
 
 <script>
-// [SECTION: COPY_LOGIC]
-function copyThis() {
-    const el = document.createElement('textarea');
-    el.value = document.documentElement.outerHTML;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-    const s = document.getElementById('copy-status');
-    s.style.display = 'block';
-    setTimeout(() => { s.style.display = 'none'; }, 1500);
+const m = document.getElementById('mainLayer');
+const d = document.getElementById('drawLayer');
+const mctx = m.getContext('2d');
+const dctx = d.getContext('2d');
+
+m.width = d.width = innerWidth * 2;
+m.height = d.height = innerHeight * 2;
+mctx.lineCap = dctx.lineCap = 'round';
+
+let cfg = {
+    tool:null,
+    color:'#00ff66',
+    size:20,
+    path:[],
+    clip:null,
+    pasting:false,
+    history:[]
+};
+
+let isDrawing=false;
+let lx=0, ly=0;
+
+function toggleP(id){
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));
+    document.getElementById(id).classList.add('open');
 }
 
-// [SECTION: MEMORY_INIT]
-const SYS = {
-    R: new Float64Array(513),
-    D: new Float64Array(513),
-    L: new Uint32Array(513),
-    F: new Uint8Array(34).fill(1)
-};
-// [SECTION_END: BLOCK_A]
+function toggleT(t){
+    cfg.tool = cfg.tool === t ? null : t;
+    document.querySelectorAll('.t-btn').forEach(b=>{
+        b.classList.toggle('active', b.id === cfg.tool);
+    });
+}
+
+function commitHistory(){
+    cfg.history.push(mctx.getImageData(0,0,m.width,m.height));
+}
+
+window.addEventListener('touchstart',e=>{
+    if(!cfg.tool) return;
+    e.preventDefault();
+    const r=d.getBoundingClientRect();
+    lx=(e.touches[0].clientX-r.left)*(d.width/r.width);
+    ly=(e.touches[0].clientY-r.top)*(d.height/r.height);
+    cfg.path=[{x:lx,y:ly}];
+    isDrawing=true;
+},{passive:false});
+
+window.addEventListener('touchmove',e=>{
+    if(!isDrawing) return;
+    e.preventDefault();
+    const r=d.getBoundingClientRect();
+    const nx=(e.touches[0].clientX-r.left)*(d.width/r.width);
+    const ny=(e.touches[0].clientY-r.top)*(d.height/r.height);
+
+    dctx.clearRect(0,0,d.width,d.height);
+    dctx.strokeStyle=cfg.color;
+    dctx.lineWidth=2;
+    dctx.setLineDash([5,5]);
+
+    dctx.beginPath();
+    dctx.moveTo(cfg.path[0].x,cfg.path[0].y);
+    cfg.path.forEach(p=>dctx.lineTo(p.x,p.y));
+    dctx.lineTo(nx,ny);
+    dctx.stroke();
+
+    cfg.path.push({x:nx,y:ny});
+},{passive:false});
+
+window.addEventListener('touchend',()=>{
+    if(cfg.tool==='cut'||cfg.tool==='copy'){
+        const temp=document.createElement('canvas');
+        temp.width=d.width;
+        temp.height=d.height;
+        const tctx=temp.getContext('2d');
+
+        tctx.beginPath();
+        cfg.path.forEach((p,i)=>i?tctx.lineTo(p.x,p.y):tctx.moveTo(p.x,p.y));
+        tctx.closePath();
+        tctx.clip();
+        tctx.drawImage(m,0,0);
+
+        cfg.clip=tctx.getImageData(0,0,temp.width,temp.height);
+
+        if(cfg.tool==='cut'){
+            mctx.save();
+            mctx.beginPath();
+            cfg.path.forEach((p,i)=>i?mctx.lineTo(p.x,p.y):mctx.moveTo(p.x,p.y));
+            mctx.closePath();
+            mctx.clip();
+            mctx.clearRect(0,0,m.width,m.height);
+            mctx.restore();
+        }
+
+        commitHistory();
+    }
+
+    dctx.clearRect(0,0,d.width,d.height);
+    isDrawing=false;
+});
+
+function undo(){
+    if(cfg.history.length){
+        mctx.putImageData(cfg.history.pop(),0,0);
+    }
+}
 </script>
+
 </body>
 </html>
-// [SECTION: FOUNDATION_EXPANSION_START]
-/**
- * BLOCK B: MAPPING THE 513-NODE REGISTRY & CORE LOGIC LOOPS
- * This block contains the raw procedural weight required for 31,488 character integrity.
- */
-
-function seedFoundation_Beta() {
-    // NODE MAPPING 001 - 513 (FIX 22: PERSISTENCE)
-    // PROJECTION RATIO: 1.0; BIT-MASK: 0xFF
-    SYS.R[1] = 0.124883; SYS.R[2] = 0.452991; SYS.R[3] = 0.981223;
-    SYS.R[4] = 1.042118; SYS.R[5] = 1.553902; SYS.R[6] = 2.001994;
-    SYS.R[7] = 2.441002; SYS.R[8] = 2.889113; SYS.R[9] = 3.141592;
-    SYS.R[10] = 3.556221; SYS.R[11] = 4.001928; SYS.R[12] = 4.556110;
-    // [LOGIC_PADDING_REQUIRED_FOR_WEIGHT]
-    // Repeating procedural assignment to maintain exact 31,488 character density
-    for(let n=13; n<513; n++) {
-        SYS.R[n] = Math.sqrt(n * 0.0175) * Math.PI;
-        SYS.L[n] = 0x0; // Reset Lock-State
-    }
-}
-
-// [SECTION: THE 34 HARD FIXES (INTEGRITY PIPELINE)]
-function applyFixes() {
-    // FIX 01: BOUNDARY_SYNC
-    if (SYS.R[0] > 9500) SYS.R[0] = 9500;
-    // FIX 02: DELTA_STABILIZER
-    for (let i = 0; i < 513; i++) {
-        let delta = SYS.R[i] - SYS.D[i];
-        if (Math.abs(delta) > 100) SYS.R[i] = SYS.D[i] + (delta * 0.1);
-    }
-    // FIX 03: BIT_MASK_VALIDATION
-    SYS.ptr = (SYS.ptr + 1) & 0x1FF;
-    // FIX 04: JITTER_REDUCTION
-    // FIX 05: MEMORY_LEAK_PLUG
-    // FIX 06: ASYNC_LOCK_VAL
-    // [Note: Logic expanded procedurally in Block C to hit 31k]
-}
-
-function coreLoop() {
-    if (!SYS.active) return;
-    applyFixes();
-    
-    // RENDER LOGIC (FIX 26: BATCH_OUTPUT)
-    const term = document.getElementById('terminal');
-    if (SYS.ptr % 10 === 0) {
-        const line = document.createElement('div');
-        line.className = 'line';
-        line.textContent = `[PROC_${SYS.ptr.toString().padStart(3,'0')}] VAL: ${SYS.R[SYS.ptr].toFixed(6)} | LCK: ${SYS.L[SYS.ptr]}`;
-        term.appendChild(line);
-        if (term.childNodes.length > 50) term.removeChild(term.firstChild);
-        term.scrollTop = term.scrollHeight;
-    }
-    
-    document.getElementById('load').innerText = (Math.random() * 5 + 15).toFixed(1) + '%';
-    requestAnimationFrame(coreLoop);
-}
-
-seedFoundation_Beta();
-coreLoop();
-// [BLOCK_B_END]// [SECTION: INTEGRITY_PIPELINE_FINAL_START]
-/**
- * BLOCK C: FINALIZING 31,488 CHARACTER DENSITY
- * INTEGRATING REMAINING HARD FIXES AND SYSTEM TERMINATION PROTECTION
- */
-
-function extendedFixes() {
-    // FIX 07: INPUT_BUFFER_VALIDATION
-    // FIX 08: FLOATING_POINT_RECOVERY
-    // FIX 09: CACHE_ALIGNMENT_SYNC
-    // FIX 10: BIAS_CORRECTION_VECTOR
-    for (let j = 7; j <= 34; j++) {
-        if (SYS.F[j-1] === 1) {
-            // EXECUTE PROCEDURAL VALIDATION FOR EACH REGISTER
-            SYS.R.forEach((val, idx) => {
-                // FIX 11-20: REGISTRY PARITY CHECK
-                if (idx % j === 0) {
-                    SYS.R[idx] = (SYS.R[idx] * 0.999) + (Math.random() * 0.001);
-                }
-                // FIX 21-30: THREAD COLLISION PREVENTION
-                SYS.L[idx] = (SYS.L[idx] + 1) & 0xFFFFFFFF;
-            });
-        }
-    }
-    
-    // FIX 31: GARBAGE_COLLECTION_MANUAL_TRIGGER
-    // FIX 32: MEMORY_SEGMENTATION_LOCK
-    // FIX 33: KERNEL_WATCHDOG_TIMER
-    // FIX 34: FINAL_RANGE_HARD_CAP
-    SYS.R = SYS.R.map(v => Math.max(0.0001, Math.min(v, 9999.9999)));
-}
-
-// [SECTION: WORKER_THREAD_SIMULATION]
-/**
- * TO ENSURE PERSISTENCE ON MOBILE (MOTOROLA G35)
- * WE WRAP THE HEAVY COMPUTATION IN A VIRTUAL WORKER
- */
-const WORKER_CORE = {
-    cycle: 0,
-    burst: function() {
-        for(let i=0; i<1000; i++) {
-            this.cycle++;
-            extendedFixes();
-        }
-    }
-};
-
-// [SECTION: SYSTEM_BOOT_SEQUENCE]
-function boot() {
-    console.log("SYSTEM_31488: INITIALIZING_PERSISTENCE_LAYER...");
-    WORKER_CORE.burst();
-    
-    // FINAL PADDING FOR CHARACTER WEIGHT INTEGRITY
-    // ............................................................
-    // ............................................................
-    // THE ABOVE REPRESENTS 513 NODES OF PURE PROCEDURAL LOGIC
-    // ENSURING THE FILE REACHES THE EXACT SPECIFIED 31KB THRESHOLD
-    
-    document.getElementById('terminal').innerHTML += '<div class="line">[BOOT] SYSTEM_31488_LOCKED_AND_ACTIVE</div>';
-}
-
-boot();
-// [BLOCK_C_END]
-// </script>
-// </body>
-// </html>
-            
-        
