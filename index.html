@@ -79,6 +79,261 @@ canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display
     height: 32px; border-radius: 6px; border: 1px solid #333;
 }
   </head>
+    <script>
+/**
+ * RETOUCHER PRO FULL JS ENGINE
+ */
+
+const m = document.getElementById('mainLayer');
+const mctx = m.getContext('2d');
+const d = document.getElementById('drawLayer');
+const dctx = d.getContext('2d');
+
+let cfg = {
+    color: '#00ff66',
+    size: 20,
+    tool: null,
+    edit: false,
+    history: [],
+    clip: null,
+    pasting: false,
+    px: 0, py: 0,
+    anchorX: 0, anchorY: 0,
+    font: 'sans-serif'
+};
+
+let isDrawing = false;
+let lx = 0, ly = 0, bStartX = 0, bStartY = 0;
+
+// Canvas init
+function initCanvas() {
+    m.width = window.innerWidth * 2;
+    m.height = window.innerHeight * 2;
+    d.width = window.innerWidth * 2;
+    d.height = window.innerHeight * 2;
+
+    mctx.lineCap = 'round';
+    mctx.lineJoin = 'round';
+    dctx.lineCap = 'round';
+    dctx.lineJoin = 'round';
+}
+
+// Touch / draw events
+window.addEventListener('touchstart', e => {
+    if(e.target.closest('.dock') || e.target.closest('.panel')) return;
+    if(!cfg.tool && !cfg.edit) return;
+
+    e.preventDefault();
+    const rect = d.getBoundingClientRect();
+    const tx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
+    const ty = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
+
+    if(cfg.tool === 'picker') {
+        const data = mctx.getImageData(tx, ty, 1, 1).data;
+        cfg.color = `rgba(${data[0]},${data[1]},${data[2]},${data[3]/255})`;
+        document.getElementById('brush-box').style.backgroundColor = cfg.color;
+        return;
+    }
+
+    isDrawing = true;
+    lx = tx; ly = ty;
+
+    if(cfg.tool === 'bridge') { bStartX = tx; bStartY = ty; }
+    if(cfg.pasting) { cfg.anchorX = tx - cfg.px; cfg.anchorY = ty - cfg.py; }
+});
+
+window.addEventListener('touchmove', e => {
+    if(!isDrawing && !cfg.pasting) return;
+    e.preventDefault();
+    const rect = d.getBoundingClientRect();
+    const nx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
+    const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
+
+    if(cfg.pasting){
+        dctx.clearRect(0,0,d.width,d.height);
+        const temp = document.createElement('canvas');
+        temp.width = d.width; temp.height = d.height;
+        const tctx = temp.getContext('2d');
+        cfg.px = nx - cfg.anchorX; cfg.py = ny - cfg.anchorY;
+        tctx.putImageData(cfg.clip, cfg.px - (cfg.clip.width/2), cfg.py - (cfg.clip.height/2));
+        dctx.globalAlpha = 0.5;
+        dctx.drawImage(temp,0,0);
+        dctx.globalAlpha = 1.0;
+        return;
+    }
+
+    if(cfg.tool === 'cut' || cfg.tool === 'copy') {
+        dctx.strokeStyle = '#00ff66';
+        dctx.lineWidth = 2;
+        dctx.setLineDash([5,5]);
+        dctx.beginPath();
+        dctx.moveTo(lx, ly);
+        dctx.lineTo(nx, ny);
+        dctx.stroke();
+    } else if(cfg.tool === 'bridge'){
+        dctx.clearRect(0,0,d.width,d.height);
+        if(cfg.history.length) dctx.putImageData(cfg.history[cfg.history.length-1],0,0);
+        dctx.strokeStyle = cfg.color;
+        dctx.lineWidth = cfg.size/2;
+        dctx.beginPath();
+        dctx.moveTo(bStartX,bStartY);
+        dctx.lineTo(nx,ny);
+        dctx.stroke();
+    } else {
+        dctx.lineCap = 'round';
+        dctx.strokeStyle = cfg.color;
+        dctx.lineWidth = cfg.size;
+        dctx.beginPath();
+        dctx.moveTo(lx, ly);
+        dctx.lineTo(nx, ny);
+        dctx.stroke();
+    }
+    lx = nx; ly = ny;
+});
+
+d.addEventListener('touchend', ()=>{
+    if(cfg.tool==='cut'||cfg.tool==='copy'){
+        dctx.closePath();
+        dctx.clip();
+        cfg.clip = dctx.getImageData(0,0,d.width,d.height);
+        cfg.pasting = true;
+        cfg.anchorX = lx; cfg.anchorY = ly;
+    }
+    cfg.history.push(mctx.getImageData(0,0,m.width,m.height));
+});
+
+// Tools
+function toggleT(tool){
+    cfg.tool = cfg.tool===tool ? null : tool;
+    document.querySelectorAll('.t-btn').forEach(b=>{
+        b.classList.toggle('active', b.id===cfg.tool);
+    });
+}
+
+function toggleEdit(){
+    cfg.edit = !cfg.edit;
+    document.getElementById('edit-box').classList.toggle('active', cfg.edit);
+}
+
+// Brush color / size
+function upClr(){
+    const h = document.getElementById('hue-s').value;
+    cfg.size = document.getElementById('size-s').value;
+    let base = (h < 10) ? '#fff' : (h > 350) ? '#000' : `hsl(${h},100%,50%)`;
+    cfg.color = base;
+    document.getElementById('brush-preview').style.backgroundColor = base;
+    document.getElementById('brush-box').style.backgroundColor = base;
+
+    const grid = document.getElementById('shade-grid');
+    grid.innerHTML='';
+    for(let i=0;i<10;i++){
+        const lum = 5 + i*10;
+        let c = `hsl(${h},100%,${lum}%)`;
+        let div = document.createElement('div');
+        div.className='shade-box';
+        div.style.backgroundColor = c;
+        div.onclick=()=>{ cfg.color=c; document.getElementById('brush-box').style.backgroundColor=c; };
+        grid.appendChild(div);
+    }
+}
+
+// Undo / Clear
+function undo(){ if(cfg.history.length) mctx.putImageData(cfg.history.pop(),0,0); }
+function clr(){ mctx.fillStyle='#000'; mctx.fillRect(0,0,m.width,m.height); dctx.clearRect(0,0,d.width,d.height); }
+
+// Import / Export
+function imp(){
+    const input = document.createElement('input'); input.type='file';
+    input.onchange = e => {
+        const reader = new FileReader();
+        reader.onload = b => {
+            const img = new Image();
+            img.onload = ()=>mctx.drawImage(img,0,0,m.width,m.height);
+            img.src = b.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    };
+    input.click();
+}
+
+function vAction(mode){
+    openDB().then(db=>{
+        const tx = db.transaction('vault','readwrite');
+        const store = tx.objectStore('vault');
+        if(mode==='save'){
+            const data = m.toDataURL('image/png');
+            store.put({id:Date.now(),data});
+            alert('Saved to Vault');
+        }
+        loadVault();
+    });
+}
+
+async function openDB(){
+    return new Promise(res=>{
+        const req = indexedDB.open('RetoucherVault',1);
+        req.onupgradeneeded = ()=>req.result.createObjectStore('vault',{keyPath:'id'});
+        req.onsuccess = ()=>res(req.result);
+    });
+}
+
+async function loadVault(){
+    const db = await openDB();
+    const list = document.getElementById('vaultList');
+    if(!list) return;
+    list.innerHTML='';
+    const tx = db.transaction('vault','readonly');
+    tx.objectStore('vault').openCursor().onsuccess = e => {
+        const cursor = e.target.result;
+        if(cursor){
+            const img = new Image();
+            img.src = cursor.value.data;
+            img.onclick = ()=>{ const i=new Image(); i.src=img.src; i.onload=()=>mctx.drawImage(i,0,0); };
+            list.appendChild(img);
+            cursor.continue();
+        }
+    };
+}
+
+// Quick Save / Clipboard
+function qSave(){
+    const data = m.toDataURL('image/png');
+    document.getElementById('q-thumb-dock').src = data;
+    cfg.clip = mctx.getImageData(0,0,m.width,m.height);
+    cfg.pasting = true;
+}
+
+// Paste
+function handlePaste(){
+    if(!cfg.clip) return;
+    cfg.pasting = true;
+    dctx.clearRect(0,0,d.width,d.height);
+    dctx.putImageData(cfg.clip,0,0);
+}
+
+// Sticker Tool
+function handleSticker(){
+    const url = prompt('Enter Sticker URL:');
+    if(!url) return;
+    const img = new Image(); img.crossOrigin='anonymous';
+    img.onload = ()=>mctx.drawImage(img,m.width/4,m.height/4,img.width,img.height);
+    img.src = url;
+}
+
+// Toggle panels
+function toggleP(id){
+    const panel = document.getElementById(id);
+    const isOpen = panel.classList.contains('open');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));
+    if(!isOpen) panel.classList.add('open');
+}
+
+// Init
+window.addEventListener('load',()=>{
+    initCanvas();
+    upClr();
+});
+</script>
 <body>
 
 <div id="viewer">
@@ -555,3 +810,106 @@ window.addEventListener('load',()=>{
     init();
     loadVaultThumbs();
 });
+        ctx.stroke();
+    lx = nx; ly = ny;
+  }
+  isDrawing = false;
+  cfg.pasting = false;
+});
+
+// VAULT & IMPORT FUNCTIONS
+async function vAction(mode, slot) {
+  const dbReq = indexedDB.open("WaterfallPro_DB_Surgery", 1);
+  dbReq.onsuccess = function (e) {
+    const db = e.target.result;
+    const tx = db.transaction("slots", "readwrite").objectStore("slots");
+    if (mode === "save") {
+      const data = m.toDataURL("image/png");
+      tx.put(data, slot);
+      loadVaultThumbs();
+    } else if (mode === "load") {
+      tx.get(slot).onsuccess = ev => {
+        const imgData = ev.target.result;
+        if (imgData) {
+          const img = new Image();
+          img.src = imgData;
+          img.onload = () => mctx.drawImage(img, 0, 0, m.width, m.height);
+        }
+      };
+    }
+  };
+}
+
+function imp() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.onchange = e => {
+    const reader = new FileReader();
+    reader.onload = b => {
+      const img = new Image();
+      img.onload = () => mctx.drawImage(img, 0, 0, m.width, m.height);
+      img.src = b.target.result;
+    };
+    reader.readAsDataURL(e.target.files[0]);
+  };
+  input.click();
+}
+
+function qSave() {
+  const data = m.toDataURL("image/png");
+  document.getElementById("q-thumb-dock").src = data;
+  cfg.clip = mctx.getImageData(0, 0, m.width, m.height);
+  cfg.pasting = true;
+}
+
+function handlePaste() {
+  if (!cfg.clip) return;
+  cfg.pasting = true;
+  dctx.clearRect(0, 0, d.width, d.height);
+  dctx.putImageData(cfg.clip, 0, 0);
+}
+
+function handleSticker() {
+  const url = prompt("Enter Sticker URL:");
+  if (!url) return;
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => mctx.drawImage(img, m.width / 4, m.height / 4, img.width, img.height);
+  img.src = url;
+}
+
+// Vault thumbs
+function loadVaultThumbs() {
+  for (let i = 0; i < 2; i++) {
+    const thumb = document.getElementById(`v-thumb-${i}`);
+    if (!thumb) continue;
+    const tx = indexedDB.open("WaterfallPro_DB_Surgery", 1);
+    tx.onsuccess = e => {
+      const db = e.target.result;
+      const store = db.transaction("slots", "readonly").objectStore("slots");
+      store.get(i).onsuccess = ev => {
+        if (ev.target.result) thumb.src = ev.target.result;
+      };
+    };
+  }
+}
+
+// Undo & clear
+function undo() {
+  if (cfg.history.length > 0) mctx.putImageData(cfg.history.pop(), 0, 0);
+}
+
+function clr() {
+  mctx.fillStyle = "#000";
+  mctx.fillRect(0, 0, m.width, m.height);
+  dctx.clearRect(0, 0, d.width, d.height);
+}
+
+// INIT
+window.addEventListener("load", () => {
+  init();
+  loadVaultThumbs();
+});
+</script>
+</body>
+  </html>
