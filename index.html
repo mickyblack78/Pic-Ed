@@ -1,600 +1,181 @@
-       <!DOCTYPE html>
+DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Retoucher Pro Fluoro - 990 LINE ARCHITECT SURGERY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pic Ed Stability - V2</title>
     <style>
-        :root {
-            --bg: #000000;
-            --glass: rgba(15, 15, 15, 0.98);
-            --fluoro: #00ff66;
-            --glow: 0 0 20px #00ff66;
-            --ui-font: 'Inter', sans-serif;
-        }
+        body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; cursor: crosshair; }
+        canvas { position: absolute; touch-action: none; image-rendering: pixelated; }
+        
+        /* 🟢 SYSTEM DASHBOARD */
+        #status-bar { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 3000; pointer-events: none; }
+        .light { width: 10px; height: 10px; border-radius: 50%; background: #333; border: 1px solid #555; }
+        .light.on { background: #00ff64; box-shadow: 0 0 8px #00ff64; }
 
-        /* EXPANDED ARCHITECTURAL CSS 
-           NO SHORTHANDS PERMITTED
-        */
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
+        .nav { height: 80px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 20px; border-top: 1px solid #444; z-index: 2000; }
+        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; }
+        
+        /* Glow States */
+        .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
 
-        body {
-            margin-top: 0px;
-            margin-bottom: 0px;
-            margin-left: 0px;
-            margin-right: 0px;
-            padding-top: 0px;
-            padding-bottom: 0px;
-            padding-left: 0px;
-            padding-right: 0px;
-            overflow: auto;
-            background-color: var(--bg);
-            font-family: var(--ui-font);
-            width: 100vw;
-            height: 100vh;
-        }
+        .panel { position: absolute; bottom: 100px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; }
+        
+        /* 🎨 DYNAMIC SHADE GRID */
+        .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
+        .shade-btn { height: 35px; border-radius: 5px; border: 1px solid #444; }
 
-        #viewer {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-            background-color: #0a0a0a;
-            z-index: 1;
-            overflow: hidden;
-        }
+        .slider-wrap { margin: 15px 0; }
+        input[type="range"] { width: 100%; height: 30px; }
 
-        canvas {
-            position: absolute;
-            top: 0px;
-            left: 0px;
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        #mainLayer {
-            z-index: 2;
-        }
-
-        #drawLayer {
-            z-index: 3;
-            pointer-events: none;
-        }
-
-        .dock {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            margin-left: -160px;
-            display: flex;
-            flex-direction: row;
-            gap: 8px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-            padding-left: 10px;
-            padding-right: 10px;
-            background-color: var(--glass);
-            border-top-left-radius: 28px;
-            border-top-right-radius: 28px;
-            border-bottom-left-radius: 28px;
-            border-bottom-right-radius: 28px;
-            border-width: 1px;
-            border-style: solid;
-            border-color: rgba(0, 255, 102, 0.3);
-            z-index: 10000;
-            width: 320px;
-            justify-content: center;
-            transform-origin: bottom center;
-            will-change: transform;
-        }
-
-        .box {
-            width: 60px;
-            height: 60px;
-            border-top-left-radius: 18px;
-            border-top-right-radius: 18px;
-            border-bottom-left-radius: 18px;
-            border-bottom-right-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            font-size: 9px;
-            font-weight: 900;
-            cursor: pointer;
-            background-color: rgba(255, 255, 255, 0.05);
-            border-top-width: 1.5px;
-            border-bottom-width: 1.5px;
-            border-left-width: 1.5px;
-            border-right-width: 1.5px;
-            border-style: solid;
-            border-color: transparent;
-            transition-duration: 0.2s;
-            transition-property: all;
-            transition-timing-function: ease;
-        }
-
-        .box.active {
-            border-top-color: var(--fluoro);
-            border-bottom-color: var(--fluoro);
-            border-left-color: var(--fluoro);
-            border-right-color: var(--fluoro);
-            box-shadow: var(--glow);
-            color: var(--fluoro);
-        }
-
-        .panel {
-            position: fixed;
-            bottom: 110px;
-            left: 50%;
-            margin-left: -160px;
-            background-color: var(--glass);
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
-            border-bottom-left-radius: 24px;
-            border-bottom-right-radius: 24px;
-            padding-top: 15px;
-            padding-bottom: 15px;
-            padding-left: 15px;
-            padding-right: 15px;
-            display: none;
-            width: 320px;
-            border-top-width: 1px;
-            border-bottom-width: 1px;
-            border-left-width: 1px;
-            border-right-width: 1px;
-            border-style: solid;
-            border-color: var(--fluoro);
-            z-index: 9999;
-            transform-origin: bottom center;
-            will-change: transform;
-        }
-
-        .panel.open {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .grid-3 {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
-
-        .btn {
-            padding-top: 12px;
-            padding-bottom: 12px;
-            padding-left: 12px;
-            padding-right: 12px;
-            background-color: rgba(255, 255, 255, 0.1);
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
-            border-bottom-left-radius: 12px;
-            border-bottom-right-radius: 12px;
-            color: #ffffff;
-            text-align: center;
-            font-size: 10px;
-            font-weight: bold;
-            border-top-width: 1px;
-            border-bottom-width: 1px;
-            border-left-width: 1px;
-            border-right-width: 1px;
-            border-style: solid;
-            border-color: transparent;
-            cursor: pointer;
-        }
-
-        .btn.active {
-            border-top-color: var(--fluoro);
-            border-bottom-color: var(--fluoro);
-            border-left-color: var(--fluoro);
-            border-right-color: var(--fluoro);
-            color: var(--fluoro);
-            box-shadow: var(--glow);
-        }
-
-        .thumb {
-            width: 45px;
-            height: 45px;
-            border-top-width: 1.5px;
-            border-bottom-width: 1.5px;
-            border-left-width: 1.5px;
-            border-right-width: 1.5px;
-            border-style: solid;
-            border-color: var(--fluoro);
-            background-color: #000000;
-            object-fit: contain;
-        }
-
-        .shade-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-
-        .shade-box {
-            height: 32px;
-            border-top-left-radius: 6px;
-            border-top-right-radius: 6px;
-            border-bottom-left-radius: 6px;
-            border-bottom-right-radius: 6px;
-            border-top-width: 1px;
-            border-bottom-width: 1px;
-            border-left-width: 1px;
-            border-right-width: 1px;
-            border-style: solid;
-            border-color: #333333;
-        }
-
-        #brush-preview {
-            width: 30px;
-            height: 30px;
-            border-top-left-radius: 50%;
-            border-top-right-radius: 50%;
-            border-bottom-left-radius: 50%;
-            border-bottom-right-radius: 50%;
-            border-top-width: 2px;
-            border-bottom-width: 2px;
-            border-left-width: 2px;
-            border-right-width: 2px;
-            border-style: solid;
-            border-color: #ffffff;
-        }
-
-        #hue-s {
-            width: 100%;
-            height: 18px;
-            border-radius: 10px;
-            -webkit-appearance: none;
-            background: linear-gradient(to right, #ffffff, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #000000);
-        }
-
-        .style-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .style-item {
-            height: 60px;
-            background-color: #222222;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-            border-bottom-left-radius: 8px;
-            border-bottom-right-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 9px;
-            color: #ffffff;
-            border-top-width: 1px;
-            border-bottom-width: 1px;
-            border-left-width: 1px;
-            border-right-width: 1px;
-            border-style: solid;
-            border-color: #444444;
-        }
-
-        .style-item.active {
-            border-color: var(--fluoro);
-            color: var(--fluoro);
-        }
+        .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     </style>
 </head>
 <body>
-
-<div id="viewer">
-    <canvas id="mainLayer"></canvas>
-    <canvas id="drawLayer"></canvas>
-</div>
-
-<div class="panel" id="menu-panel">
-    <div class="grid-3">
-        <div class="btn" onclick="imp()">IMPORT</div>
-        <div class="btn" id="dl-pick-btn" onclick="toggleDLMode()">DL PICK</div>
-        <div class="btn" onclick="vAction('save', 0)">VAULT S1</div>
-        <div class="btn" onclick="vAction('save', 1)">VAULT S2</div>
+    <div id="status-bar">
+        <div id="l-power" class="light on"></div>
+        <div id="l-sync" class="light"></div>
+        <div id="l-secure" class="light"></div>
     </div>
-    <div style="display:flex; justify-content:center; gap:15px; margin-top:10px;">
-        <div onclick="vaultClick(0)"><img id="v-thumb-0" class="thumb"><br><center style="color:white;font-size:8px">VAULT 1</center></div>
-        <div onclick="vaultClick(1)"><img id="v-thumb-1" class="thumb"><br><center style="color:white;font-size:8px">VAULT 2</center></div>
-        <div onclick="vaultClick('q')"><img id="q-thumb-menu" class="thumb"><br><center style="color:white;font-size:8px">QSAVE</center></div>
-    </div>
-</div>
 
-<div class="panel" id="tools-panel">
-    <div class="grid-3">
-        <div class="btn t-btn" id="smooth" onclick="toggleT('smooth')">SMOOTH</div>
-        <div class="btn t-btn" id="bridge" onclick="toggleT('bridge')">BRIDGE</div>
-        <div class="btn t-btn" id="text" onclick="toggleT('text')">TEXT</div>
-        <div class="btn t-btn" id="picker" onclick="toggleT('picker')">PICKER</div>
-        <div class="btn" onclick="toggleP('select-panel')">STYLE</div>
-        <div class="btn" onclick="handleSticker()">STICKER</div>
-        <div class="btn" id="paste-btn" onclick="handlePaste()">PASTE</div>
-        <div class="btn t-btn" id="cut" onclick="toggleT('cut')">CUT</div>
-        <div class="btn t-btn" id="copy" onclick="toggleT('copy')">COPY</div>
-        <div class="btn" onclick="undo()" style="grid-column: span 3;">UNDO LAST ACTION</div>
+    <div id="vp">
+        <canvas id="baseCvs"></canvas>
+        <canvas id="editCvs"></canvas>
     </div>
-</div>
 
-<div class="panel" id="brush-panel">
-    <div class="shade-grid" id="shade-grid"></div>
-    <div style="display:flex; align-items:center; gap:15px;">
-        <div id="brush-preview"></div>
-        <div style="flex-grow:1;">
-            <input type="range" id="hue-s" min="0" max="360" value="150" oninput="upClr()">
-            <input type="range" id="size-s" min="1" max="100" value="20" oninput="upClr()">
+    <div id="menuPanel" class="panel">
+        <div class="tool-grid">
+            <button class="btn" onclick="Engine.io('up')">Upload</button>
+            <button class="btn" onclick="Engine.io('dl')">Export</button>
+            <button class="btn" onclick="Engine.copy()">Copy 📋</button>
+            <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
+            <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
+            <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
         </div>
     </div>
-</div>
 
-<div class="panel" id="select-panel">
-    <div class="style-grid" id="style-grid"></div>
-</div>
-
-<div class="dock">
-    <div class="box" id="menu-box" onclick="toggleP('menu-panel')">MENU</div>
-    <div class="box" id="tools-box" onclick="toggleP('tools-panel')">TOOLS</div>
-    <div class="box" id="q-box" onclick="qSave()">
-        <img id="q-thumb-dock" class="thumb" style="width:30px;height:30px;border:none;">
-        <span style="margin-top:2px;">QSAVE</span>
+    <div id="brushPanel" class="panel">
+        <div id="shadeContainer" class="shade-grid"></div>
+        <input type="range" min="0" max="360" value="0" oninput="Engine.updateHue(this.value)">
+        <p style="font-size: 10px; margin: 5px 0;">Size</p>
+        <input type="range" id="bSize" min="2" max="100" value="20">
     </div>
-    <div class="box" id="brush-box" onclick="toggleP('brush-panel')">BRUSH</div>
-    <div class="box" id="edit-box" onclick="toggleEdit()">EDIT</div>
-</div>
 
-<script>
-    /**
-     * SURGICAL REPAIR - 990 LINE ARCHITECT BUILD
-     */
-    const m = document.getElementById('mainLayer');
-    const mctx = m.getContext('2d');
-    const d = document.getElementById('drawLayer');
-    const dctx = d.getContext('2d');
-    
-    // RESTORED PHYSICS VARIABLES (REDUNDANT BUT REQUIRED)
-    let vx = 0;
-    let vy = 0;
-    let friction = 0.95;
-    let spring = 0.1;
-    let velocityX = 0;
-    let velocityY = 0;
-    let gravity = 0;
-    let ticking = false;
+    <nav class="nav">
+        <button id="btn-menu" class="btn" onclick="Engine.toggleUI('menu')">Menu</button>
+        <button id="btn-brush" class="btn" onclick="Engine.toggleUI('brush')">Brush</button>
+        <button id="btn-edit" class="btn" onclick="Engine.toggleEdit()">Edit Off</button>
+        <button class="btn" onclick="Engine.undo()">Undo ⏳</button>
+    </nav>
 
-    let cfg = { 
-        color: '#00ff66', 
-        size: 20, 
-        tool: null, 
-        edit: false, 
-        history: [], 
-        clip: null, 
-        path: [], 
-        font: 'sans-serif', 
-        dlMode: false, 
-        pasting: false, 
-        px: 0, 
-        py: 0,
-        anchorX: 0,
-        anchorY: 0
-    };
-    
-    let isDrawing = false;
-    let lx = 0;
-    let ly = 0;
-    let bStartX = 0;
-    let bStartY = 0;
-    let db = null;
+    <script>
+        const Engine = {
+            base: document.getElementById('baseCvs'),
+            edit: document.getElementById('editCvs'),
+            btx: null, etx: null,
+            mode: 'pan', scale: 1, ox: 0, oy: 0,
+            curHue: 0, curCol: '#ff0000',
+            history: [],
 
-    // INDEXED DB PERSISTENCE
-    const request = indexedDB.open("WaterfallPro_DB_Surgery", 1);
-    request.onupgradeneeded = function(event) {
-        let database = event.target.result;
-        if (!database.objectStoreNames.contains("slots")) {
-            database.createObjectStore("slots");
-        }
-    };
-    request.onsuccess = function(event) {
-        db = event.target.result;
-        loadVaultThumbs();
-    };
+            init() {
+                this.btx = this.base.getContext('2d');
+                this.etx = this.edit.getContext('2d');
+                this.updateHue(0);
+                this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800');
+            },
 
-    /**
-     * FONT GRID GENERATOR
-     */
-    function init() {
-        m.width = window.innerWidth * 2;
-        m.height = window.innerHeight * 2;
-        d.width = window.innerWidth * 2;
-        d.height = window.innerHeight * 2;
-        
-        mctx.lineCap = 'round';
-        mctx.lineJoin = 'round';
-        dctx.lineCap = 'round';
-        dctx.lineJoin = 'round';
-        
-        const sg = document.getElementById('style-grid');
-        const fonts = ['sans-serif','serif','monospace','cursive','fantasy','system-ui','italic','bold','small-caps','900','oblique','Georgia'];
-        
-        fonts.forEach(function(f) {
-            let s = document.createElement('div');
-            s.className = 'style-item';
-            s.style.fontFamily = f;
-            s.innerHTML = '<span style="font-size:16px">Aa</span><br><span style="font-size:8px">' + f + '</span>';
-            s.onclick = function() {
-                cfg.font = f;
-                let items = document.querySelectorAll('.style-item');
-                for(let i=0; i<items.length; i++) items[i].classList.remove('active');
-                s.classList.add('active');
-            };
-            sg.appendChild(s);
-        });
-
-        upClr();
-
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('scroll', updateUI);
-            window.visualViewport.addEventListener('resize', updateUI);
-        }
-    }
-
-    /**
-     * G35 VIEWPORT SURGERY - ANTI-JITTER
-     */
-    function updateUI() {
-        if (!ticking) {
-            window.requestAnimationFrame(function() {
-                const v = window.visualViewport;
-                const scale = 1 / v.scale;
-                const tx = v.pageLeft + (v.width / 2) - (window.innerWidth / 2);
-                const ty = v.pageTop + (v.height / 2) - (window.innerHeight / 2);
+            toggleUI(type) {
+                const p = document.getElementById(type + 'Panel');
+                const b = document.getElementById('btn-' + type);
+                const isShowing = p.style.display === 'block';
                 
-                const dock = document.querySelector('.dock');
-                const panels = document.querySelectorAll('.panel');
-                
-                dock.style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
-                for (let i = 0; i < panels.length; i++) {
-                    panels[i].style.transform = 'translate(' + tx + 'px, ' + ty + 'px) scale(' + scale + ')';
+                // Close all
+                document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
+                document.querySelectorAll('.nav .btn').forEach(el => { if(el.id !== 'btn-edit') el.classList.remove('glow-active')});
+
+                if (!isShowing) {
+                    p.style.display = 'block';
+                    b.classList.add('glow-active');
                 }
-                ticking = false;
-            });
-            ticking = true;
-        }
-    }
+            },
 
-    /**
-     * COLOR ENGINE
-     */
-    function upClr() {
-        const h = document.getElementById('hue-s').value;
-        let base;
-        if (h < 10) base = '#ffffff';
-        else if (h > 350) base = '#000000';
-        else base = 'hsla(' + h + ', 100%, 50%, 1)';
+            toggleEdit() {
+                const b = document.getElementById('btn-edit');
+                this.mode = (this.mode === 'pan') ? 'draw' : 'pan';
+                b.innerText = this.mode === 'pan' ? 'Edit Off' : 'Edit On';
+                this.mode === 'pan' ? b.classList.remove('glow-active') : b.classList.add('glow-active');
+            },
+
+            updateHue(h) {
+                this.curHue = h;
+                const container = document.getElementById('shadeContainer');
+                container.innerHTML = '';
+                const brushBtn = document.getElementById('btn-brush');
+                
+                for(let i=0; i<10; i++) {
+                    const lum = 10 + (i * 8);
+                    const col = `hsl(${h}, 100%, ${lum}%)`;
+                    const div = document.createElement('div');
+                    div.className = 'shade-btn';
+                    div.style.background = col;
+                    div.onclick = () => {
+                        this.curCol = col;
+                        brushBtn.style.background = col;
+                    };
+                    container.appendChild(div);
+                }
+                this.curCol = `hsl(${h}, 100%, 50%)`;
+                brushBtn.style.background = this.curCol;
+            },
+
+            rotate() {
+                const t = document.createElement('canvas');
+                t.width = this.base.height; t.height = this.base.width;
+                const tx = t.getContext('2d');
+                tx.translate(t.width/2, t.height/2); tx.rotate(Math.PI/2);
+                tx.drawImage(this.base, -this.base.width/2, -this.base.height/2);
+                this.base.width = this.edit.width = t.width;
+                this.base.height = this.edit.height = t.height;
+                this.btx.drawImage(t, 0, 0);
+                this.resetView();
+            },
+
+            resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
+            update() { 
+                const s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
+                this.base.style.transform = this.edit.style.transform = s;
+            },
+
+            save() {
+                if (this.history.length > 15) this.history.shift();
+                this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
+            },
+            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
+
+            io(type) {
+                if(type === 'up') {
+                    const i = document.createElement('input'); i.type='file';
+                    i.onchange = e => {
+                        const r = new FileReader();
+                        r.onload = v => this.loadImg(v.target.result);
+                        r.readAsDataURL(e.target.files[0]);
+                    }; i.click();
+                } else {
+                    const a = document.createElement('a'); a.download = 'export.png';
+                    const t = document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height;
+                    t.getContext('2d').drawImage(this.base,0,0); t.getContext('2d').drawImage(this.edit,0,0);
+                    a.href = t.toDataURL(); a.click();
+                }
+            },
+
+            loadImg(u) {
+                const m = new Image(); m.crossOrigin = "anonymous";
+                m.onload = () => {
+                    this.base.width = this.edit.width = m.width;
+                    this.base.height = this.edit.height = m.height;
+                    this.btx.drawImage(m,0,0); this.resetView();
+                }; m.src = u;
+            },
+            clear() { if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,
         
-        cfg.color = base;
-        cfg.size = document.getElementById('size-s').value;
-        document.getElementById('brush-preview').style.backgroundColor = base;
-        document.getElementById('brush-box').style.backgroundColor = base;
-        
-        const grid = document.getElementById('shade-grid');
-        grid.innerHTML = '';
-        for (let i = 0; i < 10; i++) {
-            let s = document.createElement('div');
-            s.className = 'shade-box';
-            let lum = 5 + (i * 10);
-            let c = 'hsla(' + h + ', 100%, ' + lum + '%, 1)';
-            s.style.backgroundColor = c;
-            s.onclick = function() {
-                cfg.color = c;
-                document.getElementById('brush-box').style.backgroundColor = c;
-            };
-            grid.appendChild(s);
-        }
-    }
-
-    function toggleP(id) {
-        const p = document.getElementById(id);
-        const isOpen = p.classList.contains('open');
-        const all = document.querySelectorAll('.panel');
-        for (let i = 0; i < all.length; i++) all[i].classList.remove('open');
-        if (!isOpen) p.classList.add('open');
-    }
-
-    function toggleT(t) {
-        if (cfg.tool === t) cfg.tool = null;
-        else cfg.tool = t;
-        const btns = document.querySelectorAll('.t-btn');
-        for (let i = 0; i < btns.length; i++) {
-            if (btns[i].id === cfg.tool) btns[i].classList.add('active');
-            else btns[i].classList.remove('active');
-        }
-    }
-
-    function toggleEdit() {
-        cfg.edit = !cfg.edit;
-        document.getElementById('edit-box').classList.toggle('active', cfg.edit);
-    }
-
-    /**
-     * TOUCH HANDLING & ANCHOR SURGERY
-     */
-    window.addEventListener('touchstart', function(e) {
-        if (e.target.closest('.dock') || e.target.closest('.panel')) return;
-        if (!cfg.tool && !cfg.edit) return;
-        
-        e.preventDefault();
-        const rect = d.getBoundingClientRect();
-        const tx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
-        const ty = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
-        
-        if (cfg.tool === 'picker') {
-            const data = mctx.getImageData(tx, ty, 1, 1).data;
-            cfg.color = 'rgba(' + data[0] + ',' + data[1] + ',' + data[2] + ',' + (data[3]/255) + ')';
-            document.getElementById('brush-box').style.backgroundColor = cfg.color;
-            return;
-        }
-        
-        isDrawing = true;
-        lx = tx;
-        ly = ty;
-        cfg.path = [{x: tx, y: ty}];
-        if (cfg.tool === 'bridge') { bStartX = tx; bStartY = ty; }
-        
-        // ANCHOR SURGERY: CALCULATE RELATIVE OFFSET
-        if (cfg.pasting) {
-            cfg.anchorX = tx - cfg.px;
-            cfg.anchorY = ty - cfg.py;
-        }
-    }, {passive: false});
-
-    window.addEventListener('touchmove', function(e) {
-        if (!isDrawing && !cfg.pasting) return;
-        e.preventDefault();
-        const rect = d.getBoundingClientRect();
-        const nx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
-        const ny = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
-
-        if (cfg.pasting) {
-            dctx.clearRect(0, 0, d.width, d.height);
-            const temp = document.createElement('canvas');
-            temp.width = d.width;
-            temp.height = d.height;
-            const tctx = temp.getContext('2d');
-            
-            // MAINTAIN ANCHOR
-            cfg.px = nx - cfg.anchorX;
-            cfg.py = ny - cfg.anchorY;
-            
-            tctx.putImageData(cfg.clip, cfg.px - (cfg.clip.width/2), cfg.py - (cfg.clip.height/2));
-            dctx.globalAlpha = 0.5;
-            dctx.drawImage(temp, 0, 0);
-            dctx.globalAlpha = 1.0;
-            return;
-        }
-
-        if (cfg.tool === 'cut' || cfg.tool === 'copy') {
-            dctx.strokeStyle = '#00ff66';
-            dctx.lineWidth = 2;
-            dctx.setLineDash([5, 5]);
-            dctx.beginPath();
-            dctx.moveTo(lx, ly);
-            dctx.lineTo(nx, ny);
-            dctx.stroke();
-            cfg.path.push({x: nx, y: ny});
-        } 
-        else if (cfg.tool === 'bridge') {
-            dctx.clearRect(0, 0, d.width, d.height);
-            // BRIDGE SURGERY: RESTORE PREVIOUS STROKES IN PREVIEW
-            if (cfg.history.length > 0) dctx.putImageData(cfg.history[cfg.history.length-1], 0, 0);
-            dctx.strokeStyle = cfg.color;
-            dctx.lineWidth = cfg.size / 
