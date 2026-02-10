@@ -1,35 +1,30 @@
-DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pic Ed Stability - V2</title>
+    <title>Pic Ed Stability - V2.2</title>
     <style>
         body { margin: 0; background: #000; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-family: sans-serif; }
         #vp { flex: 1; overflow: hidden; position: relative; background: #111; display: flex; justify-content: center; align-items: center; cursor: crosshair; }
-        canvas { position: absolute; touch-action: none; image-rendering: pixelated; }
+        canvas { position: absolute; touch-action: none; image-rendering: pixelated; transform-origin: 0 0; }
         
-        /* 🟢 SYSTEM DASHBOARD */
         #status-bar { position: absolute; top: 10px; width: 100%; display: flex; justify-content: space-between; padding: 0 15px; box-sizing: border-box; z-index: 3000; pointer-events: none; }
         .light { width: 10px; height: 10px; border-radius: 50%; background: #333; border: 1px solid #555; }
         .light.on { background: #00ff64; box-shadow: 0 0 8px #00ff64; }
 
         .nav { height: 80px; background: #151515; display: flex; justify-content: space-around; align-items: center; padding-bottom: 20px; border-top: 1px solid #444; z-index: 2000; }
-        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; }
+        .btn { width: 22%; height: 50px; border-radius: 10px; background: #222; border: 1px solid #555; color: white; font-size: 10px; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; text-transform: uppercase; transition: 0.2s; outline: none; }
         
-        /* Glow States */
         .glow-active { border-color: #00ff64 !important; color: #00ff64 !important; box-shadow: 0 0 15px #00ff64 !important; }
 
-        .panel { position: absolute; bottom: 100px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; }
+        .panel { position: absolute; bottom: 100px; width: 90%; left: 5%; background: rgba(15,15,15,0.98); border-radius: 15px; padding: 15px; display: none; z-index: 2100; border: 1px solid #444; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
         
-        /* 🎨 DYNAMIC SHADE GRID */
         .shade-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
         .shade-btn { height: 35px; border-radius: 5px; border: 1px solid #444; }
 
-        .slider-wrap { margin: 15px 0; }
-        input[type="range"] { width: 100%; height: 30px; }
-
         .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        input[type="range"] { width: 100%; accent-color: #00ff64; }
     </style>
 </head>
 <body>
@@ -48,7 +43,7 @@ DOCTYPE html>
         <div class="tool-grid">
             <button class="btn" onclick="Engine.io('up')">Upload</button>
             <button class="btn" onclick="Engine.io('dl')">Export</button>
-            <button class="btn" onclick="Engine.copy()">Copy 📋</button>
+            <button class="btn" onclick="Engine.flatten()">Flatten 🛠️</button>
             <button class="btn" onclick="Engine.rotate()">Rotate 🔄</button>
             <button class="btn" onclick="Engine.resetView()">Center 🎯</button>
             <button class="btn" onclick="Engine.clear()" style="color:red">Burn 🔥</button>
@@ -58,7 +53,7 @@ DOCTYPE html>
     <div id="brushPanel" class="panel">
         <div id="shadeContainer" class="shade-grid"></div>
         <input type="range" min="0" max="360" value="0" oninput="Engine.updateHue(this.value)">
-        <p style="font-size: 10px; margin: 5px 0;">Size</p>
+        <p style="font-size: 10px; margin: 10px 0 5px;">Brush Size</p>
         <input type="range" id="bSize" min="2" max="100" value="20">
     </div>
 
@@ -79,25 +74,21 @@ DOCTYPE html>
             history: [],
 
             init() {
-                this.btx = this.base.getContext('2d');
-                this.etx = this.edit.getContext('2d');
+                this.btx = this.base.getContext('2d', { willReadFrequently: true });
+                this.etx = this.edit.getContext('2d', { willReadFrequently: true });
                 this.updateHue(0);
                 this.loadImg('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800');
+                this.bindEvents();
+                window.addEventListener('resize', () => this.resetView());
             },
 
             toggleUI(type) {
                 const p = document.getElementById(type + 'Panel');
                 const b = document.getElementById('btn-' + type);
                 const isShowing = p.style.display === 'block';
-                
-                // Close all
                 document.querySelectorAll('.panel').forEach(el => el.style.display = 'none');
                 document.querySelectorAll('.nav .btn').forEach(el => { if(el.id !== 'btn-edit') el.classList.remove('glow-active')});
-
-                if (!isShowing) {
-                    p.style.display = 'block';
-                    b.classList.add('glow-active');
-                }
+                if (!isShowing) { p.style.display = 'block'; b.classList.add('glow-active'); }
             },
 
             toggleEdit() {
@@ -112,21 +103,27 @@ DOCTYPE html>
                 const container = document.getElementById('shadeContainer');
                 container.innerHTML = '';
                 const brushBtn = document.getElementById('btn-brush');
-                
                 for(let i=0; i<10; i++) {
                     const lum = 10 + (i * 8);
                     const col = `hsl(${h}, 100%, ${lum}%)`;
                     const div = document.createElement('div');
                     div.className = 'shade-btn';
                     div.style.background = col;
-                    div.onclick = () => {
-                        this.curCol = col;
-                        brushBtn.style.background = col;
-                    };
+                    div.onclick = () => { this.curCol = col; brushBtn.style.background = col; };
                     container.appendChild(div);
                 }
                 this.curCol = `hsl(${h}, 100%, 50%)`;
                 brushBtn.style.background = this.curCol;
+            },
+
+            flatten() {
+                if(confirm('Merge edits into base?')) {
+                    this.btx.drawImage(this.edit, 0, 0);
+                    this.etx.clearRect(0, 0, this.edit.width, this.edit.height);
+                    this.history = [];
+                    document.getElementById('l-sync').classList.add('on');
+                    setTimeout(() => document.getElementById('l-sync').classList.remove('on'), 500);
+                }
             },
 
             rotate() {
@@ -141,31 +138,48 @@ DOCTYPE html>
                 this.resetView();
             },
 
-            resetView() { this.scale = 0.5; this.ox = 0; this.oy = 0; this.update(); },
+            resetView() {
+                const ratio = Math.min(window.innerWidth / this.base.width, window.innerHeight / this.base.height) * 0.8;
+                this.scale = ratio;
+                this.ox = (window.innerWidth - this.base.width * this.scale) / 2;
+                this.oy = (window.innerHeight - this.base.height * this.scale) / 2;
+                this.update();
+            },
+
             update() { 
                 const s = `translate(${this.ox}px, ${this.oy}px) scale(${this.scale})`;
                 this.base.style.transform = this.edit.style.transform = s;
             },
 
             save() {
-                if (this.history.length > 15) this.history.shift();
+                if (this.history.length > 20) this.history.shift();
                 this.history.push(this.etx.getImageData(0,0,this.edit.width,this.edit.height));
             },
-            undo() { if(this.history.length) this.etx.putImageData(this.history.pop(), 0, 0); },
+
+            undo() { 
+                if(this.history.length) {
+                    this.etx.putImageData(this.history.pop(), 0, 0);
+                }
+            },
 
             io(type) {
                 if(type === 'up') {
-                    const i = document.createElement('input'); i.type='file';
+                    const i = document.createElement('input'); i.type='file'; i.accept='image/*';
                     i.onchange = e => {
                         const r = new FileReader();
                         r.onload = v => this.loadImg(v.target.result);
                         r.readAsDataURL(e.target.files[0]);
                     }; i.click();
                 } else {
-                    const a = document.createElement('a'); a.download = 'export.png';
-                    const t = document.createElement('canvas'); t.width=this.base.width; t.height=this.base.height;
-                    t.getContext('2d').drawImage(this.base,0,0); t.getContext('2d').drawImage(this.edit,0,0);
-                    a.href = t.toDataURL(); a.click();
+                    const t = document.createElement('canvas');
+                    t.width = this.base.width; t.height = this.base.height;
+                    const ctx = t.getContext('2d');
+                    ctx.drawImage(this.base, 0, 0);
+                    ctx.drawImage(this.edit, 0, 0);
+                    const link = document.createElement('a');
+                    link.download = `pic-ed-${Date.now()}.png`;
+                    link.href = t.toDataURL();
+                    link.click();
                 }
             },
 
@@ -174,8 +188,79 @@ DOCTYPE html>
                 m.onload = () => {
                     this.base.width = this.edit.width = m.width;
                     this.base.height = this.edit.height = m.height;
-                    this.btx.drawImage(m,0,0); this.resetView();
+                    this.btx.drawImage(m, 0, 0);
+                    this.etx.clearRect(0, 0, this.edit.width, this.edit.height);
+                    this.history = [];
+                    this.resetView();
                 }; m.src = u;
             },
-            clear() { if(confirm('Burn edits?')) this.etx.clearRect(0,0,this.edit.width,
-        
+
+            clear() { if(confirm('Burn edits?')) { this.etx.clearRect(0,0,this.edit.width,this.edit.height); this.history=[]; } },
+
+            bindEvents() {
+                let isDown = false;
+                let lastX, lastY;
+
+                const getPos = (e) => {
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                    return {
+                        x: (clientX - this.ox) / this.scale,
+                        y: (clientY - this.oy) / this.scale
+                    };
+                };
+
+                const start = (e) => { 
+                    isDown = true;
+                    const pos = getPos(e);
+                    lastX = pos.x; lastY = pos.y;
+                    if(this.mode === 'draw') {
+                        this.save();
+                        this.draw(pos.x, pos.y, pos.x, pos.y);
+                    }
+                };
+
+                const move = (e) => {
+                    if (!isDown) return;
+                    if (this.mode === 'pan') {
+                        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                        if(lastX !== undefined) {
+                            this.ox += (e.movementX || 0);
+                            this.oy += (e.movementY || 0);
+                            this.update();
+                        }
+                    } else {
+                        const pos = getPos(e);
+                        this.draw(lastX, lastY, pos.x, pos.y);
+                        lastX = pos.x; lastY = pos.y;
+                    }
+                };
+
+                window.addEventListener('mousedown', start);
+                window.addEventListener('mousemove', move);
+                window.addEventListener('mouseup', () => isDown = false);
+                
+                this.vp = document.getElementById('vp');
+                this.vp.addEventListener('touchstart', (e) => { start(e); }, {passive: false});
+                this.vp.addEventListener('touchmove', (e) => { e.preventDefault(); move(e); }, {passive: false});
+                this.vp.addEventListener('touchend', () => isDown = false);
+            },
+
+            draw(x1, y1, x2, y2) {
+                this.etx.strokeStyle = this.curCol;
+                this.etx.lineWidth = document.getElementById('bSize').value;
+                this.etx.lineCap = 'round';
+                this.etx.lineJoin = 'round';
+                this.etx.beginPath();
+                this.etx.moveTo(x1, y1);
+                this.etx.lineTo(x2, y2);
+                this.etx.stroke();
+            }
+        };
+
+        Engine.init();
+    </script>
+</body>
+            </html>
+    
