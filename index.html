@@ -619,8 +619,8 @@
         mctx.drawImage(d, 0, 0);
         dctx.clearRect(0, 0, d.width, d.height);
         
-        cfg.history.push(mctx.getImageData(0, 0, m.width, m.height));
-        if (cfg.history.length > 20) cfg.history.shift();
+        cfg.history.push(currentStroke); if (cfg.history.length > 50) { cfg.history.shift(); }
+        
         
         if (typeof loadVaultThumbs === 'function') loadVaultThumbs();
     }, {passive: false});
