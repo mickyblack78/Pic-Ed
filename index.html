@@ -493,6 +493,8 @@
         if (!cfg.tool && !cfg.edit) return;
         
         e.preventDefault();
+        if (e.touches.length > 1) return;
+        
         const rect = d.getBoundingClientRect();
         const tx = (e.touches[0].clientX - rect.left) * (d.width / rect.width);
         const ty = (e.touches[0].clientY - rect.top) * (d.height / rect.height);
