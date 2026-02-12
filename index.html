@@ -612,4 +612,87 @@
             const txt = prompt("Text Content:");
             if (txt) {
                 dctx.font = 'bold ' + (cfg.size * 2) + 'px ' + cfg.font;
-                dctx.fillStyle =
+                dctx.fillStyle = cfg.color;
+            dctx.fillText(txt, lx, ly);
+            mctx.drawImage(d, 0, 0);
+            dctx.clearRect(0, 0, d.width, d.height);
+        } else {
+            mctx.drawImage(d, 0, 0);
+            dctx.clearRect(0, 0, d.width, d.height);
+        }
+        updateVaultThumbs();
+    }, {passive: false});
+
+    // --- CORE ENGINE FUNCTIONS ---
+
+    window.vAction = async (type, slot) => {
+        if (type === 'save') {
+            const blob = await new Promise(res => m.toBlob(res));
+            const tx = db.transaction("slots", "readwrite");
+            tx.objectStore("slots").put(blob, slot);
+            updateVaultThumbs();
+            alert("SAVED TO VAULT " + (slot + 1));
+        }
+    };
+
+    window.vaultClick = (slot) => {
+        const tx = db.transaction("slots", "readonly");
+        const req = tx.objectStore("slots").get(slot);
+        req.onsuccess = () => {
+            if (req.result) {
+                const img = new Image();
+                img.onload = () => mctx.drawImage(img, 0, 0);
+                img.src = URL.createObjectURL(req.result);
+            }
+        };
+    };
+
+    async function updateVaultThumbs() {
+        for (let i = 0; i < 2; i++) {
+            const tx = db.transaction("slots", "readonly");
+            const req = tx.objectStore("slots").get(i);
+            req.onsuccess = () => {
+                if (req.result) {
+                    document.getElementById('v-thumb-' + i).src = URL.createObjectURL(req.result);
+                }
+            };
+        }
+        document.getElementById('q-thumb-dock').src = m.toDataURL();
+        document.getElementById('q-thumb-menu').src = m.toDataURL();
+    }
+
+    window.qSave = () => {
+        const link = document.createElement('a');
+        link.download = 'fluoro_pro_export.png';
+        link.href = m.toDataURL();
+        link.click();
+    };
+
+    window.imp = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.onchange = e => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => mctx.drawImage(img, 0, 0, m.width, m.height);
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+        input.click();
+    };
+
+    window.undo = () => {
+        if (cfg.history.length > 0) {
+            mctx.putImageData(cfg.history.pop(), 0, 0);
+        }
+    };
+
+    // --- INITIALIZE ---
+    init();
+    updateUI();
+</script>
+</body>
+</html>
+
