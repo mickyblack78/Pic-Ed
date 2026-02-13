@@ -785,18 +785,7 @@ m.addEventListener('touchend', () => {
     }
 });
             
-            const req = store.get("slot_" + slot);
-            req.onsuccess = () => {
-                if (req.result) document.getElementById('v-thumb-' + slot).src = req.result;
-            };
-        });
-        const q = localStorage.getItem("qsave_cache");
-        if (q) {
-            document.getElementById('q-thumb-dock').src = q;
-            document.getElementById('q-thumb-menu').src = q;
-        }
-    }
-
+            
     
     }
 
