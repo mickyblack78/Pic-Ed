@@ -626,51 +626,8 @@
         
         if (typeof loadVaultThumbs === 'function') loadVaultThumbs();
     }, {passive: false});
-      /**
-     * STORAGE & ACTION ENGINE
-     */
-    function vAction(type, slot) {
-        if (!db) return;
-        const tx = db.transaction(["slots"], "readwrite");
-        const store = tx.objectStore("slots");
-
-        if (type === 'save') {
-            const data = m.toDataURL("image/png");
-            store.put(data, "slot_" + slot);
-            alert("VAULT " + (slot + 1) + " SYNCED");
-            loadVaultThumbs();
-        }
-    }
-
-    function qSave() {
-        const data = m.toDataURL("image/png");
-        localStorage.setItem("qsave_cache", data);
-        document.getElementById('q-thumb-dock').src = data;
-        document.getElementById('q-thumb-menu').src = data;
-    }
-
-    function vaultClick(slot) {
-        if (slot === 'q') {
-            const data = localStorage.getItem("qsave_cache");
-            if (data) loadToCanvas(data);
-            return;
-        }
-        if (!db) return;
-        const tx = db.transaction(["slots"], "readonly");
-        const store = tx.objectStore("slots");
-        const req = store.get("slot_" + slot);
-        req.onsuccess = () => { if (req.result) loadToCanvas(req.result); };
-    }
-
-    function loadToCanvas(data) {
-        const img = new Image();
-        img.onload = () => {
-            mctx.clearRect(0, 0, m.width, m.height);
-            mctx.drawImage(img, 0, 0);
-            cfg.history.push(mctx.getImageData(0, 0, m.width, m.height));
-        };
-        img.src = data;
-    }
+      
+    
 
     /* --- ARCHITECT SURGERY v2.8: GHOST BUFFER + FIFO + VAULT BRIDGE --- */
 
