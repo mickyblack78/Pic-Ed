@@ -738,7 +738,7 @@ function undo() {
 
 // 2. Interaction Engine (Midpoint Zoom & Ghost Drawing)
 let lastDist = 0;
-m.addEventListener('touchmove', e => {
+ {
     e.preventDefault();
     if (e.touches.length === 2) {
         // Spatial Chain-of-Thought: Dynamic Midpoint Zoom
