@@ -96,7 +96,7 @@
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'ERASER')">ERASER</div>
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'PICKER')">PICKER</div>
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'FILL')">FILL</div>
-                <div class="menu-item tool-btn" onclick="selectTool(this, 'CUT')">CUT</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'ROTATE')">ROTATE</div>
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'COPY')">COPY</div>
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'PASTE')">PASTE</div>
                 <div class="menu-item tool-btn" onclick="selectTool(this, 'SMOOTH')">SMOOTH</div>
@@ -155,10 +155,10 @@
                 <div class="menu-item" onclick="startTextSticker()" style="color:#0ff;">PLACE</div>
                 <div class="menu-item" onclick="cancelTextSticker()">CANCEL</div>
             </div>
-        </div>
+     </div>
     </div>
 
-    <!-- TRANSFORM BAR (Shows Flip/Stamp options during placement) -->
+    <!-- TRANSFORM BAR -->
     <div id="ui-transform-bar">
         <div class="dock-btn" onclick="textObj.fX *= -1; drawTextPreview();" style="flex:0.5;">FLIP X</div>
         <div class="dock-btn" onclick="textObj.fY *= -1; drawTextPreview();" style="flex:0.5;">FLIP Y</div>
@@ -168,13 +168,12 @@
 
     <input type="file" id="load-file" class="hidden-file" accept="image/*">
     <input type="file" id="import-file" class="hidden-file" accept="image/*">
+
     <script>
     const app = { activeTool: null, penColor: '#00ffff', penSize: 20, scale: 1, panX: 0, panY: 0, undo: [], vaults: [], vaultIdx: 0 };
     const viewport = document.getElementById('viewport'), main = document.getElementById('main-canvas'), temp = document.getElementById('temp-canvas');
     const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
-    let currentOpenMenu = null;
-
-    // --- OVERLAY & TOOLS LOGIC ---
+    let currentOpenMenu = null;   
     function toggleOverlay(id) {
         document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.dock-btn').forEach(btn => btn.classList.remove('active-btn'));
@@ -196,7 +195,8 @@
     }
 
     // --- TRANSFORM & STICKER ENGINE ---
-    let textObj = { txt: '', font: '', rot: 0, x: 100, y: 100, scale: 1, img: null, fX: 1, fY: 1 };
+    let textObj = { txt: '', font: '', rot: 0, x: 100, y: 100, scale: 1, img: null, fX: 1, fY: 1, lastR: 0, cRot: 0 };
+    window.lassoPath = [];
 
     function openTextMenu() {
         document.getElementById('ui-text').style.display = 'flex';
@@ -221,17 +221,19 @@
         document.getElementById('ui-text').style.display = 'none'; 
         document.getElementById('ui-transform-bar').style.display = 'none';
         app.activeTool = null; 
-        tctx.putImageData(window.dragBackup, 0, 0);
+        tctx.clearRect(0, 0, temp.width, temp.height);
         // Reset state for next time
         textObj.img = null; textObj.scale = 1; textObj.rot = 0; textObj.fX = 1; textObj.fY = 1;
     }
 
     function drawTextPreview() {
         if(app.activeTool !== 'TEXT_PLACE') return;
-        tctx.putImageData(window.dragBackup, 0, 0);
+        tctx.clearRect(0, 0, temp.width, temp.height); 
         tctx.save(); 
-        tctx.translate(textObj.x, textObj.y); 
-        tctx.rotate(textObj.rot * Math.PI / 180);
+        const cx = (window.innerWidth / 2 - app.panX) / app.scale;
+        const cy = (window.innerHeight / 2 - app.panY) / app.scale;
+        tctx.translate(cx, cy); 
+        tctx.rotate(textObj.rot * Math.PI / 180); 
         tctx.scale(textObj.scale * textObj.fX, textObj.scale * textObj.fY);
         if (textObj.img) {
             tctx.drawImage(textObj.img, -textObj.img.width/2, -textObj.img.height/2);
@@ -239,8 +241,10 @@
             tctx.font = `${app.penSize * 2 * Math.abs(textObj.scale)}px ${textObj.font}`; 
             tctx.fillStyle = app.penColor; tctx.textAlign = "center"; tctx.fillText(textObj.txt, 0, 0);
         }
+
         tctx.restore();
     }
+    
 
     function confirmTextSticker() {
         document.getElementById('ui-transform-bar').style.display = 'none'; 
@@ -316,8 +320,10 @@
         const l = document.createElement('a'); l.download = name + '.png'; l.href = comp.toDataURL(); l.click(); toggleOverlay(null);
     }
 
-    function triggerQSave() {
-        mctx.drawImage(temp,0,0); tctx.clearRect(0,0,temp.width,temp.height); pushUndo();
+    
+        function triggerQSave() {
+        mctx.drawImage(temp,0,0); pushUndo();
+        localStorage.setItem('last_session', main.toDataURL('image/jpeg', 0.8));
         app.vaultIdx = app.vaultIdx === 0 ? 1 : 0;
         app.vaults[app.vaultIdx] = main.toDataURL('image/jpeg', 0.8);
         localStorage.setItem('v' + app.vaultIdx, app.vaults[app.vaultIdx]);
@@ -343,26 +349,24 @@
                     mctx.clearRect(0,0,main.width,main.height); 
                     mctx.drawImage(img,0,0); 
                     tctx.clearRect(0,0,temp.width,temp.height);
-                    app.undo = []; pushUndo(); toggleOverlay(null);
-                } else if (type === 'import') {
-                    // FULL RESET: Prevents new imports from using old settings
-                    textObj.img = img; textObj.txt = ''; 
-                    textObj.scale = 0.5; textObj.rot = 0;
-                    textObj.fX = 1; textObj.fY = 1;
                     
+                localStorage.setItem('last_session', main.toDataURL('image/jpeg', 0.8)); app.undo = []; pushUndo(); toggleOverlay(null);
+        } else if (type === 'import') {
+textObj.img = img; 
+textObj.txt = '';
+                    let screenW = window.innerWidth / app.scale;
+let screenH = window.innerHeight / app.scale;
+textObj.scale = Math.max(screenW / img.width, screenH / img.height);
+textObj.rot = -textObj.cRot; 
+textObj.fX = 1; textObj.fY = 1;
                     app.activeTool = 'TEXT_PLACE';
                     window.dragBackup = tctx.getImageData(0,0,temp.width,temp.height);
-                    
-                    // UI LOGIC: Close menu, show Stamp/Flip bar
                     toggleOverlay(null);
                     document.getElementById('ui-transform-bar').style.display = 'flex';
-                    
-                    // CENTER CALCULATION
-                    const rect = temp.getBoundingClientRect();
-                    textObj.x = (window.innerWidth/2 - rect.left) / app.scale;
-                    textObj.y = (window.innerHeight/2 - rect.top) / app.scale;
                     drawTextPreview();
-                }
+                }            
+                    
+                
             }; img.src = ev.target.result;
         }; reader.readAsDataURL(file); e.target.value = '';
     }
@@ -442,16 +446,21 @@
 
     viewport.addEventListener('touchstart', e => {
         if (e.touches.length === 2) {
-            isDraw = false; isPan = true; 
+            isDraw = false; isPan = false; 
             dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2; return;
         }
         if (e.touches.length === 1) {
             const t = e.touches[0];
-            if (!app.activeTool) { isDraw = false; isPan = true; lx = t.clientX - app.panX; ly = t.clientY - app.panY; } 
-            else {
-                isPan = false; isDraw = true; const c = getC(t); lx = c.x; ly = c.y;
-                if (app.activeTool === 'PICKER') { executePicker(c); } 
+            if (!app.activeTool) { 
+                isDraw = false; isPan = true; 
+                lx = t.clientX; ly = t.clientY; 
+                px = app.panX; py = app.panY; 
+            } else {
+                isPan = false; isDraw = true; 
+                const c = getC(t); lx = c.x; ly = c.y;
+                if (app.activeTool === 'PICKER') { executePicker(c); }
+                
                 else if (app.activeTool === 'FILL') { floodFill(c.x, c.y); isDraw = false; }
                 else if (app.activeTool === 'TEXT_PLACE') { 
                     isDraw = true; lx = c.x; ly = c.y; 
@@ -463,7 +472,7 @@
                     pC.getContext('2d').putImageData(window.clipboard, 0, 0); 
                     tctx.drawImage(pC, c.x, c.y); isDraw = false; pushUndo(); 
                 }
-                else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.rX = c.x; window.rY = c.y; }
+                else if (app.activeTool === 'ROTATE') { textObj.lastR = t.clientX; } else if (app.activeTool === 'COPY') { window.lassoPath = [{x: c.x, y: c.y}]; }
                 else if (app.activeTool === 'SMOOTH') {
                     window.smoothBuf = document.createElement('canvas'); 
                     window.smoothBuf.width = main.width; window.smoothBuf.height = main.height;
@@ -477,7 +486,7 @@
     viewport.addEventListener('touchmove', e => {
         e.preventDefault();
         if (e.touches.length === 2) {
-            if (app.activeTool === 'TEXT_PLACE') {
+             if (app.activeTool === 'TEXT_PLACE') {
                 const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
                 textObj.scale *= (nd / dist); dist = nd; 
                 if(document.getElementById('text-scale-slider')) document.getElementById('text-scale-slider').value = textObj.scale;
@@ -485,74 +494,77 @@
             }
             if (isPan) {
                 const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                if (nd < 20) return; 
                 const ns = Math.min(Math.max(0.1, app.scale * (nd / dist)), 50); 
-                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
-                app.scale = ns; dist = nd; px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                app.panX = midX - (midX - app.panX) * (ns / app.scale); 
+                app.panY = midY - (midY - app.panY) * (ns / app.scale); 
+                app.scale = ns; dist = nd;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale}) rotate(${textObj.cRot}deg)`;
+                if(app.activeTool === 'TEXT_PLACE') drawTextPreview();
             }
         } else if (e.touches.length === 1) {
-            if (isPan && !app.activeTool) { 
-                app.panX = e.touches[0].clientX - lx; app.panY = e.touches[0].clientY - ly; 
-                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`; 
+            const t = e.touches[0];
+            if (isPan) { 
+                app.panX = px + (t.clientX - lx); 
+app.panY = py + (t.clientY - ly);
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale}) rotate(${textObj.cRot}deg)`; 
+                if(app.activeTool === 'TEXT_PLACE') drawTextPreview();
             } 
             else if (isDraw && app.activeTool) {
-                const c = getC(e.touches[0]);
-                if (app.activeTool === 'TEXT_PLACE') { 
-                    textObj.x += (c.x - lx); textObj.y += (c.y - ly); 
-                    lx = c.x; ly = c.y; drawTextPreview(); 
+                const c = getC(t);
+                if (app.activeTool === 'ROTATE') {
+                    let delta = (t.clientX - textObj.lastR) * 0.5;
+
+                    if (app.activeTool === 'TEXT_PLACE') { textObj.rot += delta; drawTextPreview(); }
+                    else { textObj.cRot += delta; viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale}) rotate(${textObj.cRot}deg)`; }
+                    textObj.lastR = t.clientX;
                 }
-                else if (app.activeTool === 'SMOOTH') {
-                    tctx.save(); tctx.beginPath(); tctx.arc(c.x, c.y, app.penSize/app.scale, 0, Math.PI*2); 
-                    tctx.clip(); tctx.filter = 'blur(4px)'; tctx.drawImage(window.smoothBuf, 0, 0); 
-                    tctx.restore(); tctx.filter = 'none'; // Fix: reset blur for other tools
+                else if (app.activeTool === 'COPY') {
+                    window.lassoPath.push({x: c.x, y: c.y});
+                    
+ tctx.beginPath(); tctx.strokeStyle = '#0ff'; tctx.lineWidth = 2; window.lassoPath.forEach((p, i) => i === 0 ? tctx.moveTo(p.x, p.y) : tctx.lineTo(p.x, p.y)); tctx.stroke();
                 }
                 else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
-                    tctx.lineWidth = app.penSize / app.scale; 
-                    tctx.globalCompositeOperation = (app.activeTool === 'ERASER') ? 'destination-out' : 'source-over';
+                    tctx.lineWidth = app.penSize / app.scale; tctx.globalCompositeOperation = (app.activeTool === 'ERASER') ? 'destination-out' : 'source-over';
                     if(app.activeTool !== 'ERASER') tctx.strokeStyle = app.penColor;
-                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); 
-                    lx = c.x; ly = c.y;
+                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); lx = c.x; ly = c.y;
                 }
             }
         }
     }, {passive: false});
 
     window.addEventListener('touchend', e => {
+isDraw = false;
         if (isDraw && app.activeTool) {
-            if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
-                const c = getC(e.changedTouches[0]); const w = c.x - window.rX, h = c.y - window.rY; 
+            if (app.activeTool === 'COPY') {
                 tctx.clearRect(0,0, temp.width, temp.height);
-                if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
-                if (Math.abs(w) > 5 && Math.abs(h) > 5) {
-                    window.clipboard = mctx.getImageData(window.rX, window.rY, w, h);
-                    if (app.activeTool === 'CUT') { mctx.clearRect(window.rX, window.rY, w, h); pushUndo(); }
+                if (window.lassoPath && window.lassoPath.length > 3) {
+                    const off = document.createElement('canvas'); off.width = main.width; off.height = main.height; const octx = off.getContext('2d');
+                    octx.beginPath(); window.lassoPath.forEach((p, i) => i === 0 ? octx.moveTo(p.x, p.y) : octx.lineTo(p.x, p.y)); octx.closePath();
+                    octx.clip(); octx.drawImage(main, 0, 0); octx.drawImage(temp, 0, 0);
+                    window.clipboard = octx.getImageData(0,0, main.width, main.height);
                 }
-            } else if (app.activeTool === 'SMOOTH' || app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { 
-                window.smoothBuf = null; pushUndo(); 
-            }
-        }
-        isDraw = false; isPan = false;
+                window.lassoPath = [];
+            } else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
+         isPan = false;
+}
     });
 
     // --- STARTUP & PWA ---
     function init() {
-        main.width = temp.width = window.innerWidth; main.height = temp.height = window.innerHeight;
-        main.style.width = temp.style.width = window.innerWidth + 'px'; 
-        main.style.height = temp.style.height = window.innerHeight + 'px';
-        mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round'; 
-        updateColor();
-        
-        // Fix: Vault Thumbnails now persistent
+        mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round'; updateColor();
+        const last = localStorage.getItem('last_session');
+        const bg = new Image(); bg.src = last || 'car.png'; 
+        bg.onload = () => { applyFitMath(bg.width, bg.height); mctx.drawImage(bg, 0, 0); app.undo = []; pushUndo(); };
+        bg.onerror = () => { applyFitMath(window.innerWidth, window.innerHeight); if(app.undo.length === 0) pushUndo(); };
         for(let i=0; i<2; i++) {
             app.vaults[i] = localStorage.getItem('v'+i);
             if(app.vaults[i]) document.getElementById('vault-img-'+i).src = app.vaults[i];
         }
-        
-        // Background Loader with Undo Fix
-        const bg = new Image(); bg.src = 'car.png'; 
-        bg.onload = () => { mctx.drawImage(bg, 0, 0); app.undo = []; pushUndo(); };
-        bg.onerror = () => { if(app.undo.length === 0) pushUndo(); }; 
     }
+        
     init();
 
     if ('launchQueue' in window) {
@@ -584,5 +596,26 @@
             };
         }).catch(err => console.log('SW failed', err));
     }
+function applySmartBorderSmooth(ctx, pathPoints, radius = 2) {
+        if (!ctx || !pathPoints || pathPoints.length === 0) return;
+        const imgData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+        const data = imgData.data;
+        pathPoints.forEach(pt => {
+            const cx = Math.floor(pt.x), cy = Math.floor(pt.y);
+            let sumR = 0, sumG = 0, sumB = 0, count = 0;
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    const idx = ((cy + dy) * ctx.canvas.width + (cx + dx)) * 4;
+                    if (data[idx + 3] > 0) { sumR += data[idx]; sumG += data[idx+1]; sumB += data[idx+2]; count++; }
+                }
+            }
+            if (count > 0) {
+                const idx = (cy * ctx.canvas.width + cx) * 4;
+                data[idx] = sumR / count; data[idx+1] = sumG / count; data[idx+2] = sumB / count;
+            }
+        });
+        ctx.putImageData(imgData, 0, 0);
+    } 
 </script>
+</body>
 </html>
