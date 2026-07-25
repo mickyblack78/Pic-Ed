@@ -536,20 +536,30 @@ app.panY = py + (t.clientY - ly);
     }, {passive: false});
 
     window.addEventListener('touchend', e => {
-isDraw = false;
-        if (isDraw && app.activeTool) {
-            if (app.activeTool === 'COPY') {
-                tctx.clearRect(0,0, temp.width, temp.height);
-                if (window.lassoPath && window.lassoPath.length > 3) {
-                    const off = document.createElement('canvas'); off.width = main.width; off.height = main.height; const octx = off.getContext('2d');
-                    octx.beginPath(); window.lassoPath.forEach((p, i) => i === 0 ? octx.moveTo(p.x, p.y) : octx.lineTo(p.x, p.y)); octx.closePath();
-                    octx.clip(); octx.drawImage(main, 0, 0); octx.drawImage(temp, 0, 0);
-                    window.clipboard = octx.getImageData(0,0, main.width, main.height);
-                }
-                window.lassoPath = [];
-            } else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
-         isPan = false;
-}
+        if (isDraw) {
+            // This guarantees the stroke is recorded in RAM
+            if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { 
+                pushUndo(); 
+            }
+            isDraw = false; 
+        }
+        isPan = false; // Reset panning
+        
+        // Handle the COPY tool separately
+        if (app.activeTool === 'COPY' && window.lassoPath && window.lassoPath.length > 3) {
+            tctx.clearRect(0,0, temp.width, temp.height);
+            const off = document.createElement('canvas'); 
+            off.width = main.width; off.height = main.height; 
+            const octx = off.getContext('2d');
+            octx.beginPath(); 
+            window.lassoPath.forEach((p, i) => i === 0 ? octx.moveTo(p.x, p.y) : octx.lineTo(p.x, p.y)); 
+            octx.closePath();
+            octx.clip(); 
+            octx.drawImage(main, 0, 0); 
+            octx.drawImage(temp, 0, 0);
+            window.clipboard = octx.getImageData(0,0, main.width, main.height);
+            window.lassoPath = [];
+        }
     });
 
     // --- STARTUP & PWA ---
