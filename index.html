@@ -492,7 +492,7 @@ textObj.fX = 1; textObj.fY = 1;
                 if(document.getElementById('text-scale-slider')) document.getElementById('text-scale-slider').value = textObj.scale;
                 drawTextPreview(); return;
             }
-            if (isPan) {
+            if (e.touches.length === 2)  {
                 const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
                 if (nd < 20) return; 
                 const ns = Math.min(Math.max(0.1, app.scale * (nd / dist)), 50); 
